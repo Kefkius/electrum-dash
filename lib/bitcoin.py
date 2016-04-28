@@ -212,9 +212,9 @@ def hash_160(public_key):
         return md.digest()
 
 
-def public_key_to_bc_address(public_key):
+def public_key_to_bc_address(public_key, addrtype = 76):
     h160 = hash_160(public_key)
-    return hash_160_to_bc_address(h160)
+    return hash_160_to_bc_address(h160, addrtype)
 
 def hash_160_to_bc_address(h160, addrtype = 76):
     vh160 = chr(addrtype) + h160
@@ -387,7 +387,7 @@ from ecdsa.util import string_to_number, number_to_string
 def msg_magic(message):
     varint = var_int(len(message))
     encoded_varint = "".join([chr(int(varint[i:i+2], 16)) for i in xrange(0, len(varint), 2)])
-    return "\x18DarkCoin Signed Message:\n" + encoded_varint + message
+    return "\x19DarkCoin Signed Message:\n" + encoded_varint + message
 
 
 def verify_message(address, signature, message):
@@ -498,7 +498,8 @@ class EC_KEY(object):
             try:
                 self.verify_message(address, sig, message)
                 return sig
-            except Exception:
+            except Exception as e:
+                print('Error for verifying with "%s": %s' % (chr(27 + i + (4 if compressed else 0)), str(e)))
                 continue
         else:
             raise Exception("error: cannot sign message")
@@ -523,9 +524,10 @@ class EC_KEY(object):
         public_key.verify_digest(sig[1:], h, sigdecode = ecdsa.util.sigdecode_string)
         pubkey = point_to_ser(public_key.pubkey.point, compressed)
         # check that we get the original signing address
-        addr = public_key_to_bc_address(pubkey)
+        addrtype, _ = bc_address_to_hash_160(address)
+        addr = public_key_to_bc_address(pubkey, addrtype)
         if address != addr:
-            raise Exception("Bad signature")
+            raise Exception("Bad signature for %s, sig is for %s" % (address, addr))
 
 
     # ECIES encryption/decryption methods; AES-128-CBC with PKCS7 is used as the cipher; hmac-sha256 is used as the mac
