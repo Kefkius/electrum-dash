@@ -102,11 +102,12 @@ class MasternodePing(object):
         vds.write_string(self.sig)
         return vds.input.encode('hex')
 
-    def serialize_for_sig(self):
+    def serialize_for_sig(self, update_time=False):
         s = serialize_input_str(self.vin)
-        # Endianness appears correct.
         s += self.block_hash
 
+        if update_time:
+            self.sig_time = int(time.time())
         s += str(self.sig_time)
         return s
 
@@ -114,13 +115,14 @@ class MasternodePing(object):
         """Sign this ping.
 
         If delegate_pubkey is specified, it will be used to verify the signature.
+        If current_time is specified, sig_time will not be updated.
         """
-        eckey = bitcoin.regenerate_key(wif)
         if current_time is None:
             current_time = int(time.time())
         self.sig_time = current_time
-        vds = BCDataStream()
-        serialized = unicode(self.serialize_for_sig()).encode('utf-8')
+
+        eckey = bitcoin.regenerate_key(wif)
+        serialized = unicode(self.serialize_for_sig(update_time=False)).encode('utf-8')
 
         if not delegate_pubkey:
             delegate_pubkey = bitcoin.public_key_from_private_key(wif).decode('hex')
@@ -227,8 +229,11 @@ class MasternodeAnnounce(object):
 
         return vds.input.encode('hex')
 
-    def serialize_for_sig(self):
+    def serialize_for_sig(self, update_time=False):
         """Serialize the message for signing."""
+        if update_time:
+            self.sig_time = int(time.time())
+
         s = str(self.addr)
         s += str(self.sig_time)
 
@@ -274,11 +279,10 @@ class MasternodeAnnounce(object):
         if current_time is None:
             current_time = int(time.time())
         self.sig_time = current_time
-        serialized = self.serialize_for_sig()
-        sig = eckey.sign_message(serialized, bitcoin.is_compressed(wif),
+        serialized = self.serialize_for_sig(update_time=False)
+        self.sig = eckey.sign_message(serialized, bitcoin.is_compressed(wif),
                     bitcoin.public_key_to_bc_address(self.collateral_key.decode('hex')))
-        self.sig = sig
-        return sig
+        return self.sig
 
     def verify(self, addr=None):
         """Verify that our sig is signed with addr's key."""

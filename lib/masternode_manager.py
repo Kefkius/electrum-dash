@@ -112,13 +112,12 @@ class MasternodeManager(object):
 
         # Sign ping with delegate key.
         address = bitcoin.public_key_to_bc_address(mn.delegate_key.decode('hex'))
-        sec = self.wallet.get_private_key(address, password)[0]
-        mn.last_ping.sign(sec)
+        mn.last_ping.sig = self.wallet.sign_message(address, mn.last_ping.serialize_for_sig(update_time=True), password)
 
         # After creating the Masternode Ping, sign the Masternode Announce.
         address = bitcoin.public_key_to_bc_address(mn.collateral_key.decode('hex'))
-        sec = self.wallet.get_private_key(address, password)[0]
-        sig = mn.sign(sec)
+        mn.sig = self.wallet.sign_message(address, mn.serialize_for_sig(update_time=True), password)
+
         return mn
 
     def send_announce(self, alias):
