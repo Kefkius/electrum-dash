@@ -8,45 +8,47 @@ from transaction import BCDataStream, parse_input
 
 class NetworkAddress(object):
     """A network address."""
-    def __init__(self, timestamp=0, services=0, ip='', port=0):
-        self.timestamp = timestamp
-        self.services = services
+    def __init__(self, ip='', port=0):
         self.ip = ip
         self.port = port
 
     @classmethod
     def deserialize(cls, vds):
-        timestamp = vds.read_uint32()
-        services = vds.read_uint64()
+        # IPv4-mapped IPv6 address.
+        _ = vds.read_bytes(12);
         ip = []
         for i in range(4):
             ip.append(vds.read_uchar())
         ip = '.'.join(map(str, ip))
         # Ports are encoded as big-endian.
         port = vds._read_num('>H')
-        return cls(timestamp=timestamp, services=services, ip=ip, port=port)
+        return cls(ip=ip, port=port)
 
     @classmethod
     def from_dict(cls, d):
         kwargs = {}
-        for key in ['timestamp', 'services', 'ip', 'port']:
+        for key in ['ip', 'port']:
             kwargs[key] = d.get(key)
         return cls(**kwargs)
 
     def __str__(self):
         return '%s:%s' % (self.ip, self.port)
 
-    def serialize(self, vds):
-        vds.write_uint32(self.timestamp)
-        vds.write_uint64(self.services)
+    def serialize(self, vds=None):
+        if not vds:
+            vds = BCDataStream()
+        # IPv4-mapped IPv6 address.
+        vds.write('00000000000000000000ffff'.decode('hex'))
+
         ip = map(int, self.ip.split('.'))
         for i in ip:
             vds.write_uchar(i)
         # Ports are encoded as big-endian.
         vds._write_num('>H', self.port)
+        return vds.input.encode('hex')
 
     def dump(self):
-        return {'timestamp': self.timestamp, 'services': self.services, 'ip': self.ip, 'port': self.port}
+        return {'ip': self.ip, 'port': self.port}
 
 class MasternodePing(object):
     """A masternode ping message."""
