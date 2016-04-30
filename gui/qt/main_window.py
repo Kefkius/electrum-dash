@@ -45,12 +45,14 @@ from electrum_dash import SimpleConfig, Wallet, WalletStorage
 from electrum_dash import Imported_Wallet
 from electrum_dash import paymentrequest
 from electrum_dash.contacts import Contacts
+from electrum_dash.masternode_manager import MasternodeManager
 
 from amountedit import AmountEdit, BTCAmountEdit, MyLineEdit, BTCkBEdit
 from network_dialog import NetworkDialog
 from qrcodewidget import QRCodeWidget, QRDialog
 from qrtextedit import ScanQRTextEdit, ShowQRTextEdit
 from transaction_dialog import show_transaction
+from masternode_dialog import MasternodeDialog
 
 
 
@@ -114,6 +116,7 @@ class ElectrumWindow(QMainWindow):
         self.config = config
         self.network = network
         self.wallet = None
+        self.masternode_manager = None
 
         self.gui_object = gui_object
         self.tray = gui_object.tray
@@ -220,6 +223,7 @@ class ElectrumWindow(QMainWindow):
     def load_wallet(self, wallet):
         import electrum_dash
         self.wallet = wallet
+        self.masternode_manager = MasternodeManager(self.wallet, self.config)
         # backward compatibility
         self.update_wallet_format()
         self.import_old_contacts()
@@ -421,6 +425,9 @@ class ElectrumWindow(QMainWindow):
         self.export_menu = self.private_keys_menu.addAction(_("&Export"), self.export_privkeys_dialog)
         wallet_menu.addAction(_("&Export History"), self.export_history_dialog)
         wallet_menu.addAction(_("Search"), self.toggle_search).setShortcut(QKeySequence("Ctrl+S"))
+
+        wallet_menu.addSeparator()
+        wallet_menu.addAction(_("Masternodes"), self.show_masternode_dialog)
 
         tools_menu = menubar.addMenu(_("&Tools"))
 
@@ -2928,3 +2935,7 @@ class ElectrumWindow(QMainWindow):
             f.write(csr)
         #os.system('openssl asn1parse -i -in test.csr')
         return 'test.csr'
+
+    def show_masternode_dialog(self):
+        d = MasternodeDialog(self.masternode_manager, self)
+        d.exec_()
