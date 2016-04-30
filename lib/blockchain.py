@@ -145,8 +145,8 @@ class Blockchain():
         self.print_error("validated chunk %d to height %d" % (index, height))
 
 
-
-    def header_to_string(self, res):
+    @classmethod
+    def header_to_string(cls , res):
         s = int_to_hex(res.get('version'),4) \
             + rev_hex(res.get('prev_block_hash')) \
             + rev_hex(res.get('merkle_root')) \
@@ -155,8 +155,8 @@ class Blockchain():
             + int_to_hex(int(res.get('nonce')),4)
         return s
 
-
-    def header_from_string(self, s):
+    @classmethod
+    def header_from_string(cls, s):
         hex_to_int = lambda s: int('0x' + s[::-1].encode('hex'), 16)
         h = {}
         h['version'] = hex_to_int(s[0:4])
@@ -167,8 +167,9 @@ class Blockchain():
         h['nonce'] = hex_to_int(s[76:80])
         return h
 
-    def hash_header(self, header):
-        return rev_hex(PoWHash(self.header_to_string(header).decode('hex')).encode('hex'))
+    @classmethod
+    def hash_header(cls, header):
+        return rev_hex(PoWHash(cls.header_to_string(header).decode('hex')).encode('hex'))
 
     def path(self):
         return os.path.join(self.config.path, 'blockchain_headers')

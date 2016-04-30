@@ -1,6 +1,7 @@
 from collections import namedtuple
 
 import bitcoin
+from blockchain import Blockchain
 from masternode import MasternodeAnnounce, NetworkAddress
 
 MasternodeConfLine = namedtuple('MasternodeConfLine', ('alias', 'addr',
@@ -105,9 +106,15 @@ class MasternodeManager(object):
             raise Exception('Nonexistent masternode')
         if mn.announced:
             raise Exception('Masternode has already activated')
+        # Ensure that the masternode's vin is valid.
+        if mn.vin.get('scriptSig') is None:
+            mn.vin['scriptSig'] = ''
+        if mn.vin.get('sequence') is None:
+            mn.vin['sequence'] = 0xffffffff
         # Ensure that the masternode's last_ping is current.
-        mn.last_ping.retrieve_block_hash(self.wallet)
-        mn.last_ping.network_event.wait()
+        height = self.wallet.get_local_height() - 12
+        header = self.wallet.network.get_header(height)
+        mn.last_ping.block_hash = Blockchain.hash_header(header)
         mn.last_ping.vin = mn.vin
 
         # Sign ping with delegate key.

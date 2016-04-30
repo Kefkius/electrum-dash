@@ -74,24 +74,6 @@ class MasternodePing(object):
         self.block_hash = block_hash
         self.sig_time = int(sig_time)
         self.sig = sig
-        self.network_event = threading.Event()
-
-    def retrieve_block_hash(self, wallet):
-        """Retrieve block hash from network."""
-        if not wallet.network or not wallet.network.is_connected():
-            raise Exception('Not connected')
-        height = wallet.get_local_height() - 12
-        # asynchronous
-        self.network_event.clear()
-        wallet.network.send([('blockchain.block.get_header', [height])], self.on_block_hash)
-
-    def on_block_hash(self, r):
-        """Network callback for block hash."""
-        self.network_event.set()
-        result = r.get('result')
-        if not result:
-            raise Exception('MasternodePing: No block hash received for height')
-        self.block_hash = result
 
     def serialize(self, vds=None):
         if not vds:
