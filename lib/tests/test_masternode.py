@@ -93,22 +93,35 @@ class TestMasternode(unittest.TestCase):
         # self.assertFalse(announce.serialize())
 
 class TestMasternodePing(unittest.TestCase):
-    def setUp(self):
+    def test_serialize_for_sig(self):
         vin = {'prevout_hash': '27c7c43cfde0943d2397b9fd5106d0a1f6927074a5fa6dfcf7fe50a2cb6b8d10',
                'prevout_n': 0, 'scriptSig': '', 'sequence': 0xffffffff}
         block_hash = '0000009784f43ea4c4158631a7b638f452e3ed8783eeac00d995e860de12e69f'
         sig_time = 1460397824
-        self.ping = MasternodePing(vin=vin, block_hash=block_hash, sig_time=sig_time)
+        ping = MasternodePing(vin=vin, block_hash=block_hash, sig_time=sig_time)
 
-    def test_serialize_for_sig(self):
         expected = 'CTxIn(COutPoint(27c7c43cfde0943d2397b9fd5106d0a1f6927074a5fa6dfcf7fe50a2cb6b8d10, 0), scriptSig=)0000009784f43ea4c4158631a7b638f452e3ed8783eeac00d995e860de12e69f1460397824'
-        self.assertEqual(expected, self.ping.serialize_for_sig())
+        self.assertEqual(expected, ping.serialize_for_sig())
 
     def test_sign(self):
+        vin = {'prevout_hash': '00'*32, 'prevout_n': 0, 'scriptSig': '', 'sequence':0xffffffff}
+        block_hash = 'ff'*32
+        current_time = 1461858375
+        ping = MasternodePing(vin=vin, block_hash=block_hash, sig_time=current_time)
+
+        expected_sig = 'H6k0M7G15GLnJ7i7Zcs8uCHcVRsn1P0hKK4lVMkgY4byaOvUECCsfxA9ktUiFT8scfFYYb/sxkcD8ifU/SEnBUg='
         wif = 'XCbhXBc2N9q8kxqBF41rSuLWVpVVbDm7P1oPv9GxcrS9QXYBWZkB'
-        sig = self.ping.sign(wif)
+        sig = ping.sign(wif, current_time = current_time)
         address = bitcoin.address_from_private_key(wif)
-        self.assertTrue(bitcoin.verify_message(address, sig, self.ping.serialize_for_sig()))
+        self.assertTrue(bitcoin.verify_message(address, sig, ping.serialize_for_sig()))
+        self.assertEqual(expected_sig, base64.b64encode(sig))
+
+class TestNetworkAddr(unittest.TestCase):
+    def test_serialize(self):
+        expected = '00000000000000000000ffffc0a801654e1f'
+        addr = NetworkAddress(ip='192.168.1.101', port=19999)
+        self.assertEqual(expected, addr.serialize())
+        self.assertEqual('192.168.1.101:19999', str(addr))
 
 class TestParseMasternodeConf(unittest.TestCase):
     def test_parse(self):
