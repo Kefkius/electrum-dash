@@ -46,6 +46,11 @@ class TestMasternode(unittest.TestCase):
         h = bitcoin.hash_encode(h)
         self.assertEqual(expected_hash, h)
 
+    def test_get_hash(self):
+        announce = MasternodeAnnounce.deserialize(raw_announce)
+        expected = 'ef3fe643adc638044b32879bc644a0fb1ebe6ca75281368184c891da9c07986b'
+        self.assertEqual(expected, announce.get_hash())
+
     def test_verify(self):
         announce = MasternodeAnnounce.deserialize(raw_announce)
         message = announce.serialize_for_sig()

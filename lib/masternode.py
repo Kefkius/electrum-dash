@@ -196,6 +196,13 @@ class MasternodeAnnounce(object):
                     'protocol_version': protocol_version, 'last_ping': last_ping, 'last_dsq': last_dsq}
         return cls(**kwargs)
 
+    def get_hash(self):
+        vds = BCDataStream()
+        serialize_input(vds, self.vin)
+        vds.write_string(self.collateral_key.decode('hex'))
+        vds.write_int64(self.sig_time)
+        return hash_encode(bitcoin.Hash(vds.input))
+
     def serialize(self, vds=None):
         if not vds:
             vds = BCDataStream()
