@@ -396,7 +396,7 @@ def parse_scriptSig(d, bytes):
     d['x_pubkeys'] = x_pubkeys
     d['pubkeys'] = pubkeys
     d['redeemScript'] = redeemScript
-    d['address'] = hash_160_to_bc_address(hash_160(redeemScript.decode('hex')), 16)
+    d['address'] = hash_160_to_bc_address(hash_160(redeemScript.decode('hex')), bitcoin.SCRIPT_ADDR)
 
 
 
@@ -419,7 +419,7 @@ def get_address_from_output_script(bytes):
     # p2sh
     match = [ opcodes.OP_HASH160, opcodes.OP_PUSHDATA4, opcodes.OP_EQUAL ]
     if match_decoded(decoded, match):
-        return 'address', hash_160_to_bc_address(decoded[1][1],16)
+        return 'address', hash_160_to_bc_address(decoded[1][1], bitcoin.SCRIPT_ADDR)
 
     return 'script', bytes
 
@@ -587,11 +587,11 @@ class Transaction:
             return addr.encode('hex')
         elif output_type == 'address':
             addrtype, hash_160 = bc_address_to_hash_160(addr)
-            if addrtype == 76:
+            if addrtype == bitcoin.PUBKEY_ADDR:
                 script = '76a9'                                      # op_dup, op_hash_160
                 script += push_script(hash_160.encode('hex'))
                 script += '88ac'                                     # op_equalverify, op_checksig
-            elif addrtype == 16:
+            elif addrtype == bitcoin.SCRIPT_ADDR:
                 script = 'a9'                                        # op_hash_160
                 script += push_script(hash_160.encode('hex'))
                 script += '87'                                       # op_equal
