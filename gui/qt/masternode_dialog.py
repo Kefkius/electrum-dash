@@ -18,12 +18,12 @@ import util
 class MasternodesModel(QAbstractTableModel):
     """Model for masternodes."""
     ALIAS = 0
-    VIN = 1
-    ADDR = 2
-    COLLATERAL = 3
-    DELEGATE = 4
-    PROTOCOL_VERSION = 5
-    ANNOUNCED = 6
+    ANNOUNCED = 1
+    VIN = 2
+    ADDR = 3
+    COLLATERAL = 4
+    DELEGATE = 5
+    PROTOCOL_VERSION = 6
     TOTAL_FIELDS = 7
 
 
@@ -34,12 +34,12 @@ class MasternodesModel(QAbstractTableModel):
 
         headers = [
             {Qt.DisplayRole: 'Alias',},
+            {Qt.DisplayRole: 'Activated',},
             {Qt.DisplayRole: 'Collateral',},
             {Qt.DisplayRole: 'Address',},
             {Qt.DisplayRole: 'Collateral Key',},
             {Qt.DisplayRole: 'Delegate Key',},
             {Qt.DisplayRole: 'Protocol Version',},
-            {Qt.DisplayRole: 'Activated',},
         ]
         for d in headers:
             d[Qt.EditRole] = d[Qt.DisplayRole]
@@ -99,6 +99,12 @@ class MasternodesModel(QAbstractTableModel):
 
         if i == self.ALIAS:
             data = mn.alias
+        elif i == self.ANNOUNCED:
+            data = mn.announced
+            if role == Qt.CheckStateRole:
+                data = Qt.Checked if data else Qt.Unchecked
+            elif role == Qt.DisplayRole:
+                data = _('Yes') if data else _('No')
         elif i == self.VIN:
             txid = mn.vin.get('prevout_hash')
             out_n = mn.vin.get('prevout_n')
@@ -121,12 +127,6 @@ class MasternodesModel(QAbstractTableModel):
                 data = bitcoin.public_key_to_bc_address(data.decode('hex'))
         elif i == self.PROTOCOL_VERSION:
             data = mn.protocol_version
-        elif i == self.ANNOUNCED:
-            data = mn.announced
-            if role == Qt.CheckStateRole:
-                data = Qt.Checked if data else Qt.Unchecked
-            elif role == Qt.DisplayRole:
-                data = _('Yes') if data else _('No')
 
         return QVariant(data)
 
@@ -138,6 +138,8 @@ class MasternodesModel(QAbstractTableModel):
 
         if i == self.ALIAS:
             mn.alias = str(value.toString())
+        elif i == self.ANNOUNCED:
+            mn.announced = value.toBool()
         elif i == self.VIN:
             return False
         elif i == self.ADDR:
@@ -155,8 +157,6 @@ class MasternodesModel(QAbstractTableModel):
             if not ok:
                 return False
             mn.protocol_version = version
-        elif i == self.ANNOUNCED:
-            mn.announced = value.toBool()
         else:
             return False
 
