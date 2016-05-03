@@ -1,6 +1,6 @@
 """DASH masternode support."""
 import time
-import threading
+import base64
 
 import bitcoin
 from bitcoin import hash_encode, hash_decode
@@ -65,11 +65,13 @@ class MasternodePing(object):
         kwargs = {}
         for key in ['vin', 'block_hash', 'sig_time', 'sig']:
             kwargs[key] = d.get(key)
+        if kwargs.get('sig'):
+            kwargs['sig'] = base64.b64decode(kwargs['sig'])
         return cls(**kwargs)
 
     def __init__(self, vin=None, block_hash='', sig_time=0, sig=''):
         if vin is None:
-            vin = {'prevout_hash':'00'*32, 'prevout_n': 0xffffffff, 'scriptSig': '', 'sequence':0xffffffff}
+            vin = {'prevout_hash':'', 'prevout_n': 0, 'scriptSig': '', 'sequence':0xffffffff}
         self.vin = vin
         self.block_hash = block_hash
         self.sig_time = int(sig_time)
@@ -113,7 +115,8 @@ class MasternodePing(object):
         return self.sig
 
     def dump(self):
-        return {'vin': self.vin, 'block_hash': self.block_hash, 'sig_time': self.sig_time, 'sig': self.sig}
+        sig = base64.b64encode(self.sig)
+        return {'vin': self.vin, 'block_hash': self.block_hash, 'sig_time': self.sig_time, 'sig': sig}
 
 def serialize_input(vds, vin):
     vds.write(hash_decode(vin['prevout_hash']))
@@ -161,7 +164,7 @@ class MasternodeAnnounce(object):
                  last_dsq=0, announced=False):
         self.alias = alias
         if vin is None:
-            vin = {'prevout_hash':'00'*32, 'prevout_n': 0xffffffff, 'scriptSig': '', 'sequence':0xffffffff}
+            vin = {'prevout_hash':'', 'prevout_n': 0, 'scriptSig': '', 'sequence':0xffffffff}
         self.vin = vin
         self.addr = addr
         self.collateral_key = collateral_key
@@ -240,6 +243,9 @@ class MasternodeAnnounce(object):
                     'protocol_version', 'last_dsq', 'announced']:
             kwargs[key] = d.get(key)
 
+        sig = kwargs.get('sig')
+        if sig:
+            kwargs['sig'] = base64.b64decode(sig)
         addr = d.get('addr')
         if addr:
             kwargs['addr'] = NetworkAddress.from_dict(addr)
@@ -251,9 +257,12 @@ class MasternodeAnnounce(object):
 
     def dump(self):
         kwargs = {}
-        for key in ['alias', 'vin', 'collateral_key', 'delegate_key', 'sig', 'sig_time',
+        for key in ['alias', 'vin', 'collateral_key', 'delegate_key', 'sig_time',
                     'protocol_version', 'last_dsq', 'announced']:
             kwargs[key] = getattr(self, key)
+
+        if self.sig:
+            kwargs['sig'] = base64.b64encode(self.sig)
         if self.addr:
             kwargs['addr'] = self.addr.dump()
         if self.last_ping:
