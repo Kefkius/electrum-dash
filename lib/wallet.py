@@ -1758,6 +1758,9 @@ class NewWallet(BIP32_Wallet, Mnemonic):
         account = BIP32_Account({'xpub':xpub})
         self.add_account('0', account)
 
+    def can_import(self):
+        return not self.is_watching_only()
+
 
 class Multisig_Wallet(BIP32_Wallet, Mnemonic):
     # generic m of n

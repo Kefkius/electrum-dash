@@ -59,6 +59,12 @@ class MasternodesModel(QAbstractTableModel):
         mn = self.masternodes[row]
         return mn
 
+    def import_masternode_conf_lines(self, conf_lines, pw):
+        self.beginResetModel()
+        num = self.manager.import_masternode_conf_lines(conf_lines, pw)
+        self.endResetModel()
+        return num
+
     def columnCount(self, parent=QModelIndex()):
         return self.TOTAL_FIELDS
 
@@ -322,12 +328,23 @@ class MasternodeDialog(QDialog):
         with open(filename, 'r') as f:
             lines = f.readlines()
 
+        # Show an error if the conf file is malformed.
         try:
             conf_lines = parse_masternode_conf(lines)
         except Exception as e:
             QMessageBox.critical(self, _('Error'), _(str(e)))
-        else:
-            self.manager.import_masternode_conf_lines(conf_lines, pw)
+            return
+
+        num = self.masternodes_widget.model.import_masternode_conf_lines(conf_lines, pw)
+        if not num:
+            return QMessageBox.warning(self, _('Failed to Import'), _('Could not import any masternode configurations. Please ensure that they are not already imported.'))
+        # Grammar is important.
+        configurations = 'configuration' if num == 1 else 'configurations'
+        adjective = 'this' if num == 1 else 'these'
+        noun = 'masternode' if num == 1 else 'masternodes'
+        words = {'adjective': adjective, 'configurations': configurations, 'noun': noun, 'num': num,}
+        msg = '{num} {noun} {configurations} imported.\n\nPlease wait for transactions involving {adjective} {configurations} to be retrieved before activating {adjective} {noun}.'.format(**words)
+        QMessageBox.information(self, _('Success'), _(msg))
 
     def selected_masternode(self):
         """Get the currently-selected masternode."""

@@ -83,6 +83,29 @@ class MasternodeManager(object):
         if save:
             self.save()
 
+    def get_masternode_output_by_conf(self, alias):
+        """Attempt to retrieve the transaction imported from alias' configuration file."""
+        mn = self.get_masternode(alias)
+        if not mn:
+            return
+        txid = mn.vin.get('prevout_hash')
+        prevout_n = mn.vin.get('prevout_n')
+        if not txid or prevout_n is None:
+            return
+
+        tx = self.wallet.transactions.get(txid)
+        if not tx:
+            return
+        if not tx.inputs:
+            tx.deserialize()
+        if len(tx.outputs) <= prevout_n:
+            return
+        _, addr, value = tx.outputs[prevout_n]
+        mn.vin['address'] = addr
+        mn.vin['value'] = value
+        mn.vin['scriptSig'] = ''
+        return True
+
     def get_masternode_outputs(self, domain = None, exclude_frozen = True):
         """Get spendable coins that can be used as masternode collateral."""
         coins = self.wallet.get_spendable_coins(domain = domain, exclude_frozen = exclude_frozen)
@@ -193,14 +216,31 @@ class MasternodeManager(object):
 
     def import_masternode_conf_lines(self, conf_lines, password):
         """Import a list of MasternodeConfLine."""
+        def already_have(line):
+            for masternode in self.masternodes:
+                # Don't let aliases collide.
+                if masternode.alias == line.alias:
+                    return True
+                # Don't let outputs collide.
+                if masternode.vin.get('prevout_hash') == line.txid and masternode.vin.get('prevout_n') == line.output_index:
+                    return True
+            return False
+
+        num_imported = 0
         for conf_line in conf_lines:
+            if already_have(conf_line):
+                continue
             # Import delegate WIF key for signing last_ping.
             address = self.wallet.import_key(conf_line.wif, password)
             public_key = bitcoin.public_key_from_private_key(conf_line.wif)
 
             addr = conf_line.addr.split(':')
             addr = NetworkAddress(ip=addr[0], port=int(addr[1]))
-            vin = {'prevout_hash': conf_line.txid, 'prevout_n': 'output_index'}
+            vin = {'prevout_hash': conf_line.txid, 'prevout_n': conf_line.output_index}
             mn = MasternodeAnnounce(alias=conf_line.alias, vin=vin,  
                     delegate_key = public_key, addr=addr)
             self.add_masternode(mn)
+            self.wallet.set_label(address, 'Masternode "%s" delegate' % mn.alias)
+            num_imported += 1
+
+        return num_imported
