@@ -67,6 +67,7 @@ class PrevOutWidget(QWidget):
     """Widget that represents a previous outpoint."""
     def __init__(self, parent=None):
         super(PrevOutWidget, self).__init__(parent)
+        self.vin = None
         self.hash_edit = QLineEdit()
         self.hash_edit.setPlaceholderText(_('The TxID of your 1000 DASH output'))
         self.index_edit = QLineEdit()
@@ -97,17 +98,23 @@ class PrevOutWidget(QWidget):
 
     def set_str(self, value):
         s = str(value).split(':')
-        hash, index, address = '', '', ''
+        values = []
         try:
-            hash = s[0]
-            s = s[1].split('-')
-            index = s[0]
-            address = s[1]
-        except IndexError:
+            values.append(('prevout_hash', s[0]))
+            values.append(('prevout_n', int(s[1])))
+            values.append(('address', s[2]))
+            values.append(('value', int(s[3])))
+            values.append(('scriptSig', s[4]))
+        # Don't fail if not all values are present.
+        except (IndexError, ValueError):
             pass
-        self.hash_edit.setText(hash)
-        self.index_edit.setText(index)
-        self.address_edit.setText(address)
+
+        vin = {k: v for k, v in values}
+        self.hash_edit.setText(vin.get('prevout_hash', ''))
+        self.index_edit.setText(str(vin.get('prevout_n', '')))
+        self.address_edit.setText(vin.get('address', ''))
+
+        self.vin = vin
 
     def get_dict(self):
         d = {}
@@ -121,16 +128,21 @@ class PrevOutWidget(QWidget):
         d['prevout_hash'] = txid
         d['prevout_n'] = int(index)
         d['address'] = address
+        if self.vin:
+            d['value'] = int(self.vin.get('value', '0'))
+            d['scriptSig'] = self.vin.get('scriptSig', '')
         return d
 
     def set_dict(self, d):
         self.hash_edit.setText(d.get('prevout_hash', ''))
-        self.index_edit.setText(str(d.get('prevout_n', '0')))
+        self.index_edit.setText(str(d.get('prevout_n', '')))
         self.address_edit.setText(d.get('address', ''))
+        self.vin = dict(d)
 
     def clear(self):
         for widget in self.fields:
             widget.clear()
+        self.vin = {}
 
     def setReadOnly(self, isreadonly):
         for widget in self.fields:
@@ -266,13 +278,18 @@ class SignAnnounceWidget(QWidget):
     def set_masternode(self, mn):
         # Disable if the masternode was already activated.
         self.setEnabled(True)
+        self.clear_fields()
+        self.delegate_edit.clear()
+        self.alias_edit.setText(mn.alias)
         if mn.announced:
             self.setEnabled(False)
             return
-        self.alias_edit.setText(mn.alias)
-        self.clear_fields()
         # Attempt to retrieve the masternode's output if it's imported.
-        found_tx = self.manager.get_masternode_output_by_conf(mn.alias)
+        try:
+            found_tx = self.manager.get_masternode_output_by_conf(mn.alias)
+        except Exception as e:
+            self.print_error(str(e))
+            found_tx = False
         # Fill in the collateral if the masternode already has it.
         if mn.vin.get('value', 0) == COIN * 1000:
             self.collateral_edit.set_dict(mn.vin)
@@ -283,16 +300,14 @@ class SignAnnounceWidget(QWidget):
         # Fill in the delegate key's address.
         if mn.delegate_key:
             self.delegate_edit.setText(bitcoin.public_key_to_bc_address(mn.delegate_key.decode('hex')))
-        else:
-            self.delegate_edit.clear()
 
         # If successful at finding the config's output, update the view.
         if found_tx:
-            self.manager.masternodes_widget.model.dataChanged.emit(QModelIndex(), QModelIndex())
+            self.manager.masternodes_widget.refresh_items()
 
     def set_output(self, vin):
         """Set the masternode's output to the selected one."""
-        self.collateral_edit.set_str('%s:%s-%s'%(vin['prevout_hash'], vin['prevout_n'], vin['address']))
+        self.collateral_edit.set_dict(vin)
 
     def scan_for_outputs(self, include_frozen):
         """Scan for 1000 DASH outputs.

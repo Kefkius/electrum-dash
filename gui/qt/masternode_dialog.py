@@ -106,13 +106,18 @@ class MasternodesModel(QAbstractTableModel):
             elif role == Qt.DisplayRole:
                 data = _('Yes') if data else _('No')
         elif i == self.VIN:
-            txid = mn.vin.get('prevout_hash')
-            out_n = mn.vin.get('prevout_n')
-            addr = mn.vin.get('address')
-            if txid is not None and out_n is not None and addr is not None:
-                data = '%s:%d-%s' % (txid, out_n, addr)
+            txid = mn.vin.get('prevout_hash', '')
+            out_n = str(mn.vin.get('prevout_n', ''))
+            addr = mn.vin.get('address', '')
+            value = str(mn.vin.get('value', ''))
+            scriptsig = mn.vin.get('scriptSig', '')
+            if role == Qt.EditRole:
+                data = ':'.join([txid, out_n, addr, value, scriptsig])
             else:
-                data = ''
+                if all(attr for attr in [txid, out_n, addr]):
+                    data = '%s:%s' % (txid, out_n)
+                else:
+                    data = ''
         elif i == self.ADDR:
             data = ''
             if mn.addr.ip:
@@ -169,8 +174,10 @@ class MasternodesWidget(QWidget):
         super(MasternodesWidget, self).__init__(parent)
         self.manager = manager
         self.model = MasternodesModel(self.manager)
+        self.proxy_model = QSortFilterProxyModel()
+        self.proxy_model.setSourceModel(self.model)
         self.view = QTableView()
-        self.view.setModel(self.model)
+        self.view.setModel(self.proxy_model)
         for header in [self.view.horizontalHeader(), self.view.verticalHeader()]:
             header.setHighlightSections(False)
 
@@ -183,17 +190,28 @@ class MasternodesWidget(QWidget):
 
         self.view.setSelectionMode(QAbstractItemView.SingleSelection)
         self.view.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.view.setSortingEnabled(True)
 
         vbox = QVBoxLayout()
         vbox.setContentsMargins(0, 0, 0, 0)
         vbox.addWidget(self.view)
         self.setLayout(vbox)
 
+    def refresh_items(self):
+        self.model.dataChanged.emit(QModelIndex(), QModelIndex())
+
     def add_masternode(self, masternode, save = True):
         self.model.add_masternode(masternode, save=save)
 
     def remove_masternode(self, alias, save = True):
         self.model.remove_masternode(alias, save=save)
+
+    def masternode_for_row(self, row):
+        idx = self.proxy_model.mapToSource(self.proxy_model.index(row, 0))
+        return self.model.masternode_for_row(idx.row())
+
+    def import_masternode_conf_lines(self, conf_lines, pw):
+        return self.model.import_masternode_conf_lines(conf_lines, pw)
 
 class MasternodeDialog(QDialog):
     """GUI for managing masternodes."""
@@ -241,23 +259,23 @@ class MasternodeDialog(QDialog):
         collateral_desc.setWordWrap(True)
 
         self.masternode_editor = editor = MasternodeEditor()
-        model = self.masternodes_widget.model
+        model = self.masternodes_widget.proxy_model
         self.mapper = mapper = QDataWidgetMapper()
 
         editor.alias_edit.textChanged.connect(self.on_editor_alias_changed)
 
         mapper.setSubmitPolicy(QDataWidgetMapper.ManualSubmit)
         mapper.setModel(model)
-        mapper.addMapping(editor.alias_edit, model.ALIAS)
+        mapper.addMapping(editor.alias_edit, MasternodesModel.ALIAS)
 
         editor.vin_edit.setReadOnly(True)
-        mapper.addMapping(editor.vin_edit, model.VIN, 'string')
+        mapper.addMapping(editor.vin_edit, MasternodesModel.VIN, 'string')
 
-        mapper.addMapping(editor.addr_edit, model.ADDR, 'string')
-        mapper.addMapping(editor.delegate_key_edit, model.DELEGATE)
-        mapper.addMapping(editor.protocol_version_edit, model.PROTOCOL_VERSION)
+        mapper.addMapping(editor.addr_edit, MasternodesModel.ADDR, 'string')
+        mapper.addMapping(editor.delegate_key_edit, MasternodesModel.DELEGATE)
+        mapper.addMapping(editor.protocol_version_edit, MasternodesModel.PROTOCOL_VERSION)
 
-        mapper.addMapping(editor.announced_checkbox, model.ANNOUNCED)
+        mapper.addMapping(editor.announced_checkbox, MasternodesModel.ANNOUNCED)
 
         self.save_new_masternode_button = QPushButton('Save As New Masternode')
         self.save_new_masternode_button.clicked.connect(lambda: self.save_current_masternode(as_new=True))
@@ -335,7 +353,7 @@ class MasternodeDialog(QDialog):
             QMessageBox.critical(self, _('Error'), _(str(e)))
             return
 
-        num = self.masternodes_widget.model.import_masternode_conf_lines(conf_lines, pw)
+        num = self.masternodes_widget.import_masternode_conf_lines(conf_lines, pw)
         if not num:
             return QMessageBox.warning(self, _('Failed to Import'), _('Could not import any masternode configurations. Please ensure that they are not already imported.'))
         # Grammar is important.
@@ -349,13 +367,13 @@ class MasternodeDialog(QDialog):
     def selected_masternode(self):
         """Get the currently-selected masternode."""
         row = self.mapper.currentIndex()
-        mn = self.masternodes_widget.model.masternode_for_row(row)
+        mn = self.masternodes_widget.masternode_for_row(row)
         return mn
 
     def delete_current_masternode(self):
         """Delete the masternode that is being viewed."""
         mn = self.selected_masternode()
-        self.masternodes_widget.model.remove_masternode(mn.alias)
+        self.masternodes_widget.remove_masternode(mn.alias)
 
     def save_current_masternode(self, as_new=False):
         """Save the masternode that is being viewed.
@@ -365,7 +383,7 @@ class MasternodeDialog(QDialog):
         # Make sure that we have the key for the delegate address.
         delegate_addr = str(self.masternode_editor.delegate_key_edit.text())
         try:
-            _pub = self.manager.wallet.get_public_keys(delegate_addr)
+            delegate_pubkey = self.manager.wallet.get_public_keys(delegate_addr)[0]
         except Exception as e:
             QMessageBox.critical(self, _('Error'), _(str(e)))
             return
@@ -373,8 +391,13 @@ class MasternodeDialog(QDialog):
         # Construct a new masternode.
         if as_new:
             kwargs = self.masternode_editor.get_masternode_args()
-            collateral_address = self.manager.wallet.get_public_keys(kwargs['vin']['address'])[0]
-            kwargs['collateral_key'] = collateral_address
+            try:
+                collateral_key = self.manager.wallet.get_public_keys(kwargs['vin']['address'])[0]
+            except Exception as e:
+                print_error(str(e))
+                collateral_key = ''
+            kwargs['collateral_key'] = collateral_key
+            kwargs['delegate_key'] = delegate_pubkey
             del kwargs['vin']
             self.mapper.revert()
             self.masternodes_widget.add_masternode(MasternodeAnnounce(**kwargs))
@@ -464,7 +487,7 @@ class MasternodeDialog(QDialog):
 
         def on_waiting_done():
             self.sign_announce_widget.set_masternode(self.manager.get_masternode(alias))
-            self.masternodes_widget.model.dataChanged.emit(QModelIndex(), QModelIndex())
+            self.masternodes_widget.refresh_items()
 
         self.waiting_dialog = util.WaitingDialog(self, _('Broadcasting masternode...'), send_thread, on_send_successful, on_waiting_done)
         self.waiting_dialog.start()
