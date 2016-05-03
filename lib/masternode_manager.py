@@ -1,4 +1,5 @@
 from collections import namedtuple
+import threading
 
 import bitcoin
 from blockchain import Blockchain
@@ -48,6 +49,7 @@ class MasternodeManager(object):
     Keeps track of masternodes and helps with signing broadcasts.
     """
     def __init__(self, wallet, config):
+        self.announce_event = threading.Event()
         self.wallet = wallet
         self.config = config
         self.load()
@@ -61,6 +63,11 @@ class MasternodeManager(object):
         """Get the masternode labelled as alias."""
         for mn in self.masternodes:
             if mn.alias == alias:
+                return mn
+
+    def get_masternode_by_hash(self, hash_):
+        for mn in self.masternodes:
+            if mn.get_hash() == hash_:
                 return mn
 
     def add_masternode(self, mn, save = True):
@@ -106,6 +113,12 @@ class MasternodeManager(object):
             raise Exception('Nonexistent masternode')
         if mn.announced:
             raise Exception('Masternode has already activated')
+        if not mn.collateral_key:
+            raise Exception('Collateral key is not specified')
+        if not mn.delegate_key:
+            raise Exception('Masternode delegate key is not specified')
+        if not mn.addr.ip:
+            raise Exception('Masternode has no IP address')
         # Ensure that the masternode's vin is valid.
         if mn.vin.get('scriptSig') is None:
             mn.vin['scriptSig'] = ''
@@ -119,7 +132,7 @@ class MasternodeManager(object):
 
         # Sign ping with delegate key.
         address = bitcoin.public_key_to_bc_address(mn.delegate_key.decode('hex'))
-        mn.last_ping.sig = self.wallet.sign_message(address, mn.last_ping.serialize_for_sig(update_time=True), password)
+        mn.last_ping.sig = self.wallet.sign_message(address, unicode(mn.last_ping.serialize_for_sig(update_time=True)).encode('utf-8'), password)
 
         # After creating the Masternode Ping, sign the Masternode Announce.
         address = bitcoin.public_key_to_bc_address(mn.collateral_key.decode('hex'))
@@ -131,24 +144,44 @@ class MasternodeManager(object):
         """Broadcast a Masternode Announce message for alias to the network."""
         if not self.wallet.network:
             raise Exception('Not connected')
-        raise NotImplementedError()
 
         mn = self.get_masternode(alias)
-        serialized = mn.serialize()
-        self.wallet.network.send('masternode.announce.broadcast', [serialized], self.on_broadcast_announce)
+        # Vector-serialize the masternode.
+        serialized = '01' + mn.serialize()
+        callback = lambda r: self.broadcast_announce_callback(alias, r)
+        self.announce_event.clear()
+        self.wallet.network.send([('blockchain.masternode.broadcast', [serialized])], callback)
+        self.announce_event.wait()
+        return mn.announced
 
-    # TODO: determine format of result.
-    def on_broadcast_announce(self, r):
+    def broadcast_announce_callback(self, alias, r):
         """Callback for when a Masternode Announce message is broadcasted."""
+        try:
+            self.on_broadcast_announce(alias, r)
+        finally:
+            self.save()
+            self.announce_event.set()
+
+    def on_broadcast_announce(self, alias, r):
+        """Validate the server response."""
+        err = r.get('error')
+        if err:
+            raise Exception('Error response: %s' % str(err))
+
         result = r.get('result')
-        # The result may be a JSON dict?
-        # Assume raw is the serialized masternode.
-        raw = ''
-        mn_ = MasternodeAnnounce.deserialize(raw)
-        alias = mn_.alias
+
         mn = self.get_masternode(alias)
+        mn_hash = mn.get_hash()
+        mn_dict = result.get(mn_hash)
+        if not mn_dict:
+            raise Exception('No result for expected Masternode Hash. Got %s' % result)
+
+        if mn_dict.get('errorMessage'):
+            raise Exception('Announce was rejected: %s' % mn_dict['errorMessage'])
+        if mn_dict.get(mn_hash) != 'successful':
+            raise Exception('Announce was rejected (no error message specified)')
+
         mn.announced = True
-        self.save()
 
     def import_masternode_conf_lines(self, conf_lines, password):
         """Import a list of MasternodeConfLine."""

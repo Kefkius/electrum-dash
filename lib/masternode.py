@@ -5,6 +5,7 @@ import base64
 import bitcoin
 from bitcoin import hash_encode, hash_decode
 from transaction import BCDataStream, parse_input
+import util
 
 class NetworkAddress(object):
     """A network address."""
@@ -65,6 +66,8 @@ class MasternodePing(object):
         kwargs = {}
         for key in ['vin', 'block_hash', 'sig_time', 'sig']:
             kwargs[key] = d.get(key)
+        if kwargs.get('vin'):
+            kwargs['vin'] = util.utfify(kwargs['vin'])
         if kwargs.get('sig'):
             kwargs['sig'] = base64.b64decode(kwargs['sig'])
         return cls(**kwargs)
@@ -243,6 +246,9 @@ class MasternodeAnnounce(object):
                     'protocol_version', 'last_dsq', 'announced']:
             kwargs[key] = d.get(key)
 
+        vin = kwargs.get('vin')
+        if vin:
+            kwargs['vin'] = util.utfify(vin)
         sig = kwargs.get('sig')
         if sig:
             kwargs['sig'] = base64.b64decode(sig)

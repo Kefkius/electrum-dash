@@ -315,6 +315,18 @@ def parse_json(message):
         j = None
     return j, message[n+1:]
 
+def utfify(arg):
+    """Convert unicode argument to UTF-8.
+
+    Used when loading things that must be serialized.
+    """
+    if isinstance(arg, dict):
+        return {utfify(k): utfify(v) for k, v in arg.iteritems()}
+    elif isinstance(arg, list):
+        return map(utfify, arg)
+    elif isinstance(arg, unicode):
+        return arg.encode('utf-8')
+    return arg
 
 
 
