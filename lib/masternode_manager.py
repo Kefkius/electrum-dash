@@ -112,7 +112,7 @@ class MasternodeManager(object):
         if not mn:
             raise Exception('Nonexistent masternode')
         if mn.announced:
-            raise Exception('Masternode has already activated')
+            raise Exception('Masternode has already been activated')
         if not mn.collateral_key:
             raise Exception('Collateral key is not specified')
         if not mn.delegate_key:
@@ -141,23 +141,31 @@ class MasternodeManager(object):
         return mn
 
     def send_announce(self, alias):
-        """Broadcast a Masternode Announce message for alias to the network."""
+        """Broadcast a Masternode Announce message for alias to the network.
+
+        Returns a 2-tuple of (error_message, was_announced).
+        """
         if not self.wallet.network:
             raise Exception('Not connected')
 
         mn = self.get_masternode(alias)
         # Vector-serialize the masternode.
         serialized = '01' + mn.serialize()
-        callback = lambda r: self.broadcast_announce_callback(alias, r)
+        errmsg = []
+        callback = lambda r: self.broadcast_announce_callback(alias, errmsg, r)
         self.announce_event.clear()
         self.wallet.network.send([('blockchain.masternode.broadcast', [serialized])], callback)
         self.announce_event.wait()
-        return mn.announced
+        if errmsg:
+            errmsg = errmsg[0]
+        return (errmsg, mn.announced)
 
-    def broadcast_announce_callback(self, alias, r):
+    def broadcast_announce_callback(self, alias, errmsg, r):
         """Callback for when a Masternode Announce message is broadcasted."""
         try:
             self.on_broadcast_announce(alias, r)
+        except Exception as e:
+            errmsg.append(str(e))
         finally:
             self.save()
             self.announce_event.set()

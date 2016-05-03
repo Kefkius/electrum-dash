@@ -96,8 +96,9 @@ class MasternodesModel(QAbstractTableModel):
         elif i == self.VIN:
             txid = mn.vin.get('prevout_hash')
             out_n = mn.vin.get('prevout_n')
-            if txid is not None and out_n is not None:
-                data = '%s:%d' % (txid, out_n)
+            addr = mn.vin.get('address')
+            if txid is not None and out_n is not None and addr is not None:
+                data = '%s:%d-%s' % (txid, out_n, addr)
             else:
                 data = ''
         elif i == self.ADDR:
@@ -106,11 +107,11 @@ class MasternodesModel(QAbstractTableModel):
                 data = str(mn.addr)
         elif i == self.COLLATERAL:
             data = mn.collateral_key
-            if role in [Qt.DisplayRole, Qt.ToolTipRole] and data:
+            if role in [Qt.EditRole, Qt.DisplayRole, Qt.ToolTipRole] and data:
                 data = bitcoin.public_key_to_bc_address(data.decode('hex'))
         elif i == self.DELEGATE:
             data = mn.delegate_key
-            if role in [Qt.DisplayRole, Qt.ToolTipRole] and data:
+            if role in [Qt.EditRole, Qt.DisplayRole, Qt.ToolTipRole] and data:
                 data = bitcoin.public_key_to_bc_address(data.decode('hex'))
         elif i == self.PROTOCOL_VERSION:
             data = mn.protocol_version
@@ -132,22 +133,17 @@ class MasternodesModel(QAbstractTableModel):
         if i == self.ALIAS:
             mn.alias = str(value.toString())
         elif i == self.VIN:
-            try:
-                s = str(value.toString()).split(':')
-                txid = s[0]
-                out_n = int(s[1])
-                mn.vin['prevout_hash'] = txid
-                mn.vin['prevout_n'] = out_n
-            except Exception:
-                return False
+            return False
         elif i == self.ADDR:
             s = str(value.toString()).split(':')
             mn.addr.ip = s[0]
             mn.addr.port = int(s[1])
         elif i == self.COLLATERAL:
-            mn.collateral_key = str(value.toString())
+            return False
         elif i == self.DELEGATE:
-            mn.delegate_key = str(value.toString())
+            address = str(value.toString())
+            pubkey = self.manager.wallet.get_public_keys(address)[0]
+            mn.delegate_key = pubkey
         elif i == self.PROTOCOL_VERSION:
             version, ok = value.toInt()
             if not ok:
@@ -202,6 +198,7 @@ class MasternodeDialog(QDialog):
         self.manager = manager
         self.setWindowTitle(_('Masternode Manager'))
 
+        self.waiting_dialog = None
         self.create_layout()
         # Create a default masternode if none are present.
         if len(self.manager.masternodes) == 0:
@@ -251,7 +248,6 @@ class MasternodeDialog(QDialog):
         mapper.addMapping(editor.vin_edit, model.VIN, 'string')
 
         mapper.addMapping(editor.addr_edit, model.ADDR, 'string')
-        mapper.addMapping(editor.collateral_key_edit, model.COLLATERAL)
         mapper.addMapping(editor.delegate_key_edit, model.DELEGATE)
         mapper.addMapping(editor.protocol_version_edit, model.PROTOCOL_VERSION)
 
@@ -279,7 +275,8 @@ class MasternodeDialog(QDialog):
         """Create the tab used to import masternode.conf files."""
 
         desc = ' '.join(['You can use this form to import your masternode.conf file.',
-            'This file is usually located in the same directory that your wallet file is in.'])
+            'This file is usually located in the same directory that your wallet file is in.',
+            'If you just need to import your masternode\'s private key, use the regular process for importing a key.'])
         desc = QLabel(_(desc))
         desc.setWordWrap(True)
 
@@ -348,8 +345,20 @@ class MasternodeDialog(QDialog):
 
         If as_new is True, a new masternode will be created.
         """
+        # Make sure that we have the key for the delegate address.
+        delegate_addr = str(self.masternode_editor.delegate_key_edit.text())
+        try:
+            _pub = self.manager.wallet.get_public_keys(delegate_addr)
+        except Exception as e:
+            QMessageBox.critical(self, _('Error'), _(str(e)))
+            return
+
+        # Construct a new masternode.
         if as_new:
             kwargs = self.masternode_editor.get_masternode_args()
+            collateral_address = self.manager.wallet.get_public_keys(kwargs['vin']['address'])[0]
+            kwargs['collateral_key'] = collateral_address
+            del kwargs['vin']
             self.mapper.revert()
             self.masternodes_widget.add_masternode(MasternodeAnnounce(**kwargs))
             self.mapper.toLast()
@@ -403,19 +412,42 @@ class MasternodeDialog(QDialog):
             if pw is None:
                 return
 
-        try:
-            mn = self.manager.sign_announce(alias, pw)
-        except Exception as e:
-            QMessageBox.critical(self, _('Error Signing'), _(str(e)))
-            return
+        self.sign_announce_widget.sign_button.setEnabled(False)
+        success = [False]
 
-        print_error('Signed "%s" successfully: %s' % (mn.alias, mn.serialize()))
+        def sign_thread():
+            return self.manager.sign_announce(alias, pw)
 
-        try:
-            self.manager.send_announce(alias)
-        except Exception as e:
-            QMessageBox.critical(self, _('Error Sending'), _(str(e)))
-            print_error('Failed to broadcast MasternodeAnnounce: %s' % str(e))
-            return
-        QMessageBox.info(self, _('Success'), _('Masternode "%s" activated successfully.' % alias))
-        print_error('Successfully broadcasted MasternodeAnnounce for "%s"' % alias)
+        def on_sign_successful(mn):
+            success[0] = True
+        # Proceed to broadcasting the announcement, or re-enable the button.
+        def on_waiting_done():
+            if success[0]:
+                self.send_announce(alias)
+            else:
+                self.sign_announce_widget.sign_button.setEnabled(True)
+
+
+        self.waiting_dialog = util.WaitingDialog(self, _('Signing Masternode Announce...'), sign_thread, on_sign_successful, on_waiting_done)
+        self.waiting_dialog.start()
+
+
+    def send_announce(self, alias):
+        """Send an announce for a masternode."""
+        def send_thread():
+            return self.manager.send_announce(alias)
+
+        def on_send_successful(errmsg, was_announced):
+            if was_announced:
+                QMessageBox.information(self, _('Success'), _('Masternode "%s" activated successfully.' % alias))
+                print_error('Successfully broadcasted MasternodeAnnounce for "%s"' % alias)
+            else:
+                QMessageBox.critical(self, _('Error Sending'), _(errmsg))
+                print_error('Failed to broadcast MasternodeAnnounce')
+
+        def on_waiting_done():
+            self.sign_announce_widget.set_masternode(self.manager.get_masternode(alias))
+            self.masternodes_widget.model.dataChanged.emit(QModelIndex(), QModelIndex())
+
+        self.waiting_dialog = util.WaitingDialog(self, _('Broadcasting masternode...'), send_thread, on_send_successful, on_waiting_done)
+        self.waiting_dialog.start()

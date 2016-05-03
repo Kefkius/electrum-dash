@@ -3,6 +3,7 @@
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 
+from electrum_dash import bitcoin
 from electrum_dash.bitcoin import COIN
 from electrum_dash.i18n import _
 from electrum_dash.masternode import NetworkAddress, MasternodeAnnounce
@@ -70,11 +71,17 @@ class PrevOutWidget(QWidget):
         self.hash_edit.setPlaceholderText(_('The TxID of your 1000 DASH output'))
         self.index_edit = QLineEdit()
         self.index_edit.setPlaceholderText(_('The output number of your 1000 DASH output'))
+        self.address_edit = QLineEdit()
+        self.address_edit.setPlaceholderText(_('The address that 1000 DASH was sent to'))
+
+        # Collection of fields so that it's easier to act on them all at once.
+        self.fields = (self.hash_edit, self.index_edit, self.address_edit)
 
         form = QFormLayout()
         form.setContentsMargins(0, 0, 0, 0)
         form.addRow(_('TxID:'), self.hash_edit)
         form.addRow(_('Output Index:'), self.index_edit)
+        form.addRow(_('Address:'), self.address_edit)
         self.setLayout(form)
 
     @pyqtProperty(str)
@@ -86,18 +93,21 @@ class PrevOutWidget(QWidget):
         return self.set_str(str(value))
 
     def get_str(self):
-        return '%s:%s' % (str(self.hash_edit.text()), self.index_edit.text())
+        return '%s:%s-%s' % (str(self.hash_edit.text()), self.index_edit.text(), self.address_edit.text())
 
     def set_str(self, value):
         s = str(value).split(':')
-        hash = ''
-        index = ''
-        if len(s) > 0:
+        hash, index, address = '', '', ''
+        try:
             hash = s[0]
-        if len(s) > 1:
-            index = s[1]
+            s = s[1].split('-')
+            index = s[0]
+            address = s[1]
+        except IndexError:
+            pass
         self.hash_edit.setText(hash)
         self.index_edit.setText(index)
+        self.address_edit.setText(address)
 
     def get_dict(self):
         d = {}
@@ -107,21 +117,24 @@ class PrevOutWidget(QWidget):
         index = str(self.index_edit.text())
         if not index:
             index = '0'
+        address = str(self.address_edit.text())
         d['prevout_hash'] = txid
         d['prevout_n'] = int(index)
+        d['address'] = address
         return d
 
     def set_dict(self, d):
         self.hash_edit.setText(d.get('prevout_hash', ''))
         self.index_edit.setText(str(d.get('prevout_n', '0')))
+        self.address_edit.setText(d.get('address', ''))
 
     def clear(self):
-        self.hash_edit.clear()
-        self.index_edit.clear()
+        for widget in self.fields:
+            widget.clear()
 
     def setReadOnly(self, isreadonly):
-        self.hash_edit.setReadOnly(isreadonly)
-        self.index_edit.setReadOnly(isreadonly)
+        for widget in self.fields:
+            widget.setReadOnly(isreadonly)
 
 class MasternodeEditor(QWidget):
     """Editor for masternodes."""
@@ -134,10 +147,8 @@ class MasternodeEditor(QWidget):
         self.vin_edit = PrevOutWidget()
 
         self.addr_edit = NetworkAddressWidget()
-        self.collateral_key_edit = QLineEdit()
-        self.collateral_key_edit.setPlaceholderText(_('Enter the public key of your 1000 DASH key'))
         self.delegate_key_edit = QLineEdit()
-        self.delegate_key_edit.setPlaceholderText(_('Enter the public key of your masternode'))
+        self.delegate_key_edit.setPlaceholderText(_('The address that your masternode will sign messages with'))
         self.protocol_version_edit = QLineEdit()
         self.protocol_version_edit.setText('70103')
 
@@ -150,8 +161,7 @@ class MasternodeEditor(QWidget):
         form.addRow(_('Collateral DASH Output:'), self.vin_edit)
 
         form.addRow(_('Address:'), self.addr_edit)
-        form.addRow(_('Collateral Key:'), self.collateral_key_edit)
-        form.addRow(_('Delegate Key:'), self.delegate_key_edit)
+        form.addRow(_('Masternode DASH Address:'), self.delegate_key_edit)
         form.addRow(_('Protocol Version:'), self.protocol_version_edit)
         form.addRow(self.announced_checkbox)
 
@@ -167,8 +177,6 @@ class MasternodeEditor(QWidget):
         kwargs['vin'] = vin
 
         kwargs['addr'] = self.addr_edit.get_addr()
-        kwargs['collateral_key'] = str(self.collateral_key_edit.text())
-        kwargs['delegate_key'] = str(self.delegate_key_edit.text())
         protocol_version = str(self.protocol_version_edit.text())
         if protocol_version:
             kwargs['protocol_version'] = int(protocol_version)
@@ -196,18 +204,20 @@ class SignAnnounceWidget(QWidget):
 
         self.alias_edit = QLineEdit()
         self.collateral_edit = PrevOutWidget()
+        self.delegate_edit = QLineEdit()
 
         self.sign_button = QPushButton(_('Activate Masternode'))
         self.sign_button.setEnabled(False)
         self.sign_button.clicked.connect(self.sign_announce)
 
-        for i in [self.alias_edit, self.collateral_edit]:
+        for i in [self.alias_edit, self.collateral_edit, self.delegate_edit]:
             i.setReadOnly(True)
 
         form = QFormLayout()
         form.addRow(util.Buttons(include_frozen_checkbox, self.scan_outputs_button))
         form.addRow(_('Alias:'), self.alias_edit)
         form.addRow(_('1000 DASH Output:'), self.collateral_edit)
+        form.addRow(_('Masternode DASH Address:'), self.delegate_edit)
         form.addRow(util.Buttons(self.sign_button))
         self.setLayout(form)
 
@@ -225,6 +235,11 @@ class SignAnnounceWidget(QWidget):
             self.vin = mn.vin
             self.scan_outputs_button.setEnabled(False)
             self.sign_button.setEnabled(True)
+        # Fill in the delegate key's address.
+        if mn.delegate_key:
+            self.delegate_edit.setText(bitcoin.public_key_to_bc_address(mn.delegate_key.decode('hex')))
+        else:
+            self.delegate_edit.clear()
 
     def scan_for_outputs(self, include_frozen):
         """Scan for 1000 DASH outputs.
@@ -238,7 +253,7 @@ class SignAnnounceWidget(QWidget):
 
         if len(coins) > 0:
             self.vin = coins[0]
-            self.collateral_edit.set_str('%s:%s'%(self.vin['prevout_hash'], self.vin['prevout_n']))
+            self.collateral_edit.set_str('%s:%s-%s'%(self.vin['prevout_hash'], self.vin['prevout_n'], self.vin['address']))
             self.sign_button.setEnabled(True)
         else:
             self.collateral_edit.set_str(_('There are no 1000 DASH outputs in your wallet.:'))
@@ -247,6 +262,8 @@ class SignAnnounceWidget(QWidget):
         """Set the masternode's vin and sign an announcement."""
         mn = self.manager.get_masternode(str(self.alias_edit.text()))
         mn.vin = self.vin
+        mn.collateral_key = self.manager.wallet.get_public_keys(mn.vin['address'])[0]
+        mn.delegate_key = self.manager.wallet.get_public_keys(str(self.delegate_edit.text()))[0]
         self.dialog.sign_announce(mn.alias)
 
     def clear_fields(self):

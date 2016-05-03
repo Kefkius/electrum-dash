@@ -504,7 +504,7 @@ class EC_KEY(object):
                 self.verify_message(address, sig, message)
                 return sig
             except Exception as e:
-                print('Error for verifying with "%s": %s' % (chr(27 + i + (4 if compressed else 0)), str(e)))
+                print_error('Error for verifying with "%s": %s' % (chr(27 + i + (4 if compressed else 0)), str(e)))
                 continue
         else:
             raise Exception("error: cannot sign message")
