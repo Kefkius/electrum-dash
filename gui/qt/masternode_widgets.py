@@ -185,14 +185,48 @@ class MasternodeEditor(QWidget):
 
         return kwargs
 
+class MasternodeOutputsWidget(QListWidget):
+    """Widget that displays available masternode outputs."""
+    outputSelected = pyqtSignal(dict, name='outputSelected')
+    def __init__(self, parent=None):
+        super(MasternodeOutputsWidget, self).__init__(parent)
+        self.outputs = {}
+        self.selected_output = None
+        self.setSelectionMode(QAbstractItemView.SingleSelection)
+        self.selectionModel().selectionChanged.connect(self.on_selection_changed)
+
+    def sizeHint(self):
+        return QSize(256, 60)
+
+    def add_output(self, d):
+        """Add a valid output."""
+        label = '%s:%s' % (d['prevout_hash'], d['prevout_n'])
+        self.outputs[label] = d
+        self.addItem(label)
+
+    def add_outputs(self, outputs):
+        map(self.add_output, outputs)
+        self.setCurrentRow(0)
+
+    def clear(self):
+        super(MasternodeOutputsWidget, self).clear()
+        self.outputs.clear()
+        self.selected_output = None
+
+    def on_selection_changed(self, selected, deselected):
+        """Emit the selected output."""
+        items = self.selectedItems()
+        if not items:
+            return
+        self.selected_output = self.outputs[str(items[0].text())]
+        self.outputSelected.emit(self.selected_output)
+
 class SignAnnounceWidget(QWidget):
     """Widget that displays information about signing a Masternode Announce."""
     def __init__(self, parent):
         super(SignAnnounceWidget, self).__init__(parent)
         self.dialog = parent
         self.manager = parent.manager
-        # The 1000 Dash vin.
-        self.vin = None
 
         include_frozen_checkbox = QCheckBox(_('Include frozen addresses'))
         include_frozen_checkbox.setChecked(False)
@@ -201,6 +235,9 @@ class SignAnnounceWidget(QWidget):
             """Call scan_for_outputs() with whether to include frozen addresses."""
             self.scan_for_outputs(include_frozen_checkbox.isChecked())
         self.scan_outputs_button.clicked.connect(on_scan_outputs)
+
+        self.valid_outputs_list = MasternodeOutputsWidget()
+        self.valid_outputs_list.outputSelected.connect(self.set_output)
 
         self.alias_edit = QLineEdit()
         self.collateral_edit = PrevOutWidget()
@@ -213,8 +250,13 @@ class SignAnnounceWidget(QWidget):
         for i in [self.alias_edit, self.collateral_edit, self.delegate_edit]:
             i.setReadOnly(True)
 
+        valid_outputs_box = QVBoxLayout()
+        valid_outputs_box.addWidget(QLabel(_('Masternode Outputs:')))
+        valid_outputs_box.addWidget(self.valid_outputs_list)
+
         form = QFormLayout()
         form.addRow(util.Buttons(include_frozen_checkbox, self.scan_outputs_button))
+        form.addRow(valid_outputs_box)
         form.addRow(_('Alias:'), self.alias_edit)
         form.addRow(_('1000 DASH Output:'), self.collateral_edit)
         form.addRow(_('Masternode DASH Address:'), self.delegate_edit)
@@ -232,7 +274,8 @@ class SignAnnounceWidget(QWidget):
         # Fill in the collateral if the masternode already has it.
         if mn.vin.get('value', 0) == COIN * 1000:
             self.collateral_edit.set_dict(mn.vin)
-            self.vin = mn.vin
+            self.valid_outputs_list.add_output(mn.vin)
+            self.valid_outputs_list.setCurrentRow(0)
             self.scan_outputs_button.setEnabled(False)
             self.sign_button.setEnabled(True)
         # Fill in the delegate key's address.
@@ -241,10 +284,14 @@ class SignAnnounceWidget(QWidget):
         else:
             self.delegate_edit.clear()
 
+    def set_output(self, vin):
+        """Set the masternode's output to the selected one."""
+        self.collateral_edit.set_str('%s:%s-%s'%(vin['prevout_hash'], vin['prevout_n'], vin['address']))
+
     def scan_for_outputs(self, include_frozen):
         """Scan for 1000 DASH outputs.
 
-        If one is found, set self.vin and enable the sign button.
+        If one or more is found, populate the list and enable the sign button.
         """
         self.clear_fields()
         exclude_frozen = not include_frozen
@@ -252,22 +299,33 @@ class SignAnnounceWidget(QWidget):
         coins = self.manager.get_masternode_outputs(exclude_frozen=exclude_frozen)
 
         if len(coins) > 0:
-            self.vin = coins[0]
-            self.collateral_edit.set_str('%s:%s-%s'%(self.vin['prevout_hash'], self.vin['prevout_n'], self.vin['address']))
+            self.valid_outputs_list.add_outputs(coins)
             self.sign_button.setEnabled(True)
         else:
             self.collateral_edit.set_str(_('There are no 1000 DASH outputs in your wallet.:'))
 
     def sign_announce(self):
         """Set the masternode's vin and sign an announcement."""
+        # Make sure that we have the key for the delegate address.
+        delegate_addr = str(self.delegate_edit.text())
+        if not delegate_addr:
+            QMessageBox.warning(self, _('Error'), _('You must enter your masternode\'s address in the previous tab.'))
+            return
+
+        try:
+            delegate_key = self.manager.wallet.get_public_keys(delegate_addr)[0]
+        except Exception as e:
+            QMessageBox.critical(self, _('Error'), _(str(e)))
+            return
+
         mn = self.manager.get_masternode(str(self.alias_edit.text()))
-        mn.vin = self.vin
+        mn.vin = self.valid_outputs_list.selected_output
         mn.collateral_key = self.manager.wallet.get_public_keys(mn.vin['address'])[0]
-        mn.delegate_key = self.manager.wallet.get_public_keys(str(self.delegate_edit.text()))[0]
+        mn.delegate_key = delegate_key
         self.dialog.sign_announce(mn.alias)
 
     def clear_fields(self):
-        self.vin = None
         self.collateral_edit.clear()
         self.scan_outputs_button.setEnabled(True)
         self.sign_button.setEnabled(False)
+        self.valid_outputs_list.clear()
