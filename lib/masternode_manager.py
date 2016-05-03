@@ -4,6 +4,7 @@ import threading
 import bitcoin
 from blockchain import Blockchain
 from masternode import MasternodeAnnounce, NetworkAddress
+from util import AlreadyHaveAddress
 
 MasternodeConfLine = namedtuple('MasternodeConfLine', ('alias', 'addr',
         'wif', 'txid', 'output_index'))
@@ -92,6 +93,9 @@ class MasternodeManager(object):
         prevout_n = mn.vin.get('prevout_n')
         if not txid or prevout_n is None:
             return
+        # Return if it already has the information.
+        if mn.collateral_key and mn.vin.get('address') and mn.vin.get('value') == 1000 * bitcoin.COIN:
+            return
 
         tx = self.wallet.transactions.get(txid)
         if not tx:
@@ -104,6 +108,9 @@ class MasternodeManager(object):
         mn.vin['address'] = addr
         mn.vin['value'] = value
         mn.vin['scriptSig'] = ''
+
+        mn.collateral_key = self.wallet.get_public_keys(addr)[0]
+        self.save()
         return True
 
     def get_masternode_outputs(self, domain = None, exclude_frozen = True):
@@ -231,7 +238,10 @@ class MasternodeManager(object):
             if already_have(conf_line):
                 continue
             # Import delegate WIF key for signing last_ping.
-            address = self.wallet.import_key(conf_line.wif, password)
+            try:
+                address = self.wallet.import_key(conf_line.wif, password)
+            except AlreadyHaveAddress as e:
+                address = e.addr
             public_key = bitcoin.public_key_from_private_key(conf_line.wif)
 
             addr = conf_line.addr.split(':')

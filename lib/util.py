@@ -10,6 +10,12 @@ import threading
 def normalize_version(v):
     return [int(x) for x in re.sub(r'(\.0+)*$','', v).split(".")]
 
+# Raised when importing a key that's already in the wallet.
+class AlreadyHaveAddress(Exception):
+    def __init__(self, msg, addr):
+        super(AlreadyHaveAddress, self).__init__(msg)
+        self.addr = addr
+
 class NotEnoughFunds(Exception): pass
 
 class InvalidPassword(Exception):

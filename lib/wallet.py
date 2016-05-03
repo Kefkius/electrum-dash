@@ -28,7 +28,7 @@ import json
 import copy
 from operator import itemgetter
 
-from util import print_msg, print_error, NotEnoughFunds
+from util import print_msg, print_error, AlreadyHaveAddress, NotEnoughFunds
 from util import profiler
 
 from bitcoin import *
@@ -329,7 +329,7 @@ class Abstract_Wallet(object):
             raise Exception('Invalid private key')
 
         if self.is_mine(address):
-            raise Exception('Address already in wallet')
+            raise AlreadyHaveAddress('Address already in wallet', address)
 
         if self.accounts.get(IMPORTED_ACCOUNT) is None:
             self.accounts[IMPORTED_ACCOUNT] = ImportedAccount({'imported':{}})
