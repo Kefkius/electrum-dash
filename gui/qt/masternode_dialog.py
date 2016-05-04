@@ -155,7 +155,10 @@ class MasternodesModel(QAbstractTableModel):
             return False
         elif i == self.DELEGATE:
             address = str(value.toString())
-            pubkey = self.manager.wallet.get_public_keys(address)[0]
+            try:
+                pubkey = self.manager.wallet.get_public_keys(address)[0]
+            except Exception:
+                pubkey = self.manager.get_delegate_pubkey(address)
             mn.delegate_key = pubkey
         elif i == self.PROTOCOL_VERSION:
             version, ok = value.toInt()
@@ -384,9 +387,12 @@ class MasternodeDialog(QDialog):
         delegate_addr = str(self.masternode_editor.delegate_key_edit.text())
         try:
             delegate_pubkey = self.manager.get_delegate_pubkey(delegate_addr)
-        except Exception as e:
-            QMessageBox.critical(self, _('Error'), _(str(e)))
-            return
+        except Exception:
+            try:
+                delegate_pubkey = self.manager.wallet.get_public_keys(delegate_addr)[0]
+            except Exception as e:
+                QMessageBox.critical(self, _('Error'), _(str(e)))
+                return
 
         # Construct a new masternode.
         if as_new:
