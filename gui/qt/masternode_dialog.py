@@ -39,7 +39,7 @@ class MasternodesModel(QAbstractTableModel):
             {Qt.DisplayRole: 'Address',},
             {Qt.DisplayRole: 'Collateral Key',},
             {Qt.DisplayRole: 'Delegate Key',},
-            {Qt.DisplayRole: 'Protocol Version',},
+            {Qt.DisplayRole: 'Version',},
         ]
         for d in headers:
             d[Qt.EditRole] = d[Qt.DisplayRole]
@@ -190,15 +190,16 @@ class MasternodesWidget(QWidget):
             header.setHighlightSections(False)
 
         header = self.view.horizontalHeader()
-        header.setResizeMode(MasternodesModel.ALIAS, QHeaderView.Interactive)
+        header.setResizeMode(MasternodesModel.ALIAS, QHeaderView.ResizeToContents)
         header.setResizeMode(MasternodesModel.VIN, QHeaderView.Stretch)
         header.setResizeMode(MasternodesModel.COLLATERAL, QHeaderView.ResizeToContents)
         header.setResizeMode(MasternodesModel.DELEGATE, QHeaderView.ResizeToContents)
-        header.setResizeMode(MasternodesModel.PROTOCOL_VERSION, QHeaderView.ResizeToContents)
+        self.view.verticalHeader().setVisible(False)
 
         self.view.setSelectionMode(QAbstractItemView.SingleSelection)
         self.view.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.view.setSortingEnabled(True)
+        self.view.sortByColumn(self.model.ALIAS, Qt.AscendingOrder)
 
         vbox = QVBoxLayout()
         vbox.setContentsMargins(0, 0, 0, 0)
@@ -306,6 +307,7 @@ class MasternodeDialog(QDialog):
         vbox = QVBoxLayout()
         vbox.addWidget(collateral_desc)
         vbox.addWidget(editor)
+        vbox.addStretch(1)
         vbox.addLayout(util.Buttons(self.delete_masternode_button,
                 self.save_new_masternode_button, self.save_masternode_button))
         w = QWidget()

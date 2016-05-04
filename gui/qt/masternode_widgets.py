@@ -113,11 +113,7 @@ class PrevOutWidget(QWidget):
             pass
 
         vin = {k: v for k, v in values}
-        self.hash_edit.setText(vin.get('prevout_hash', ''))
-        self.index_edit.setText(str(vin.get('prevout_n', '')))
-        self.address_edit.setText(vin.get('address', ''))
-
-        self.vin = vin
+        self.set_dict(vin)
 
     def get_dict(self):
         d = {}
@@ -169,17 +165,13 @@ class MasternodeEditor(QWidget):
 
         self.announced_checkbox = util.ReadOnlyCheckBox(_('Activated'))
 
-
         form = QFormLayout()
         form.addRow(_('Alias:'), self.alias_edit)
-
         form.addRow(_('Collateral DASH Output:'), self.vin_edit)
-
         form.addRow(_('Address:'), self.addr_edit)
         form.addRow(_('Masternode DASH Address:'), self.delegate_key_edit)
         form.addRow(_('Protocol Version:'), self.protocol_version_edit)
         form.addRow(self.announced_checkbox)
-
 
         self.setLayout(form)
 
@@ -187,17 +179,13 @@ class MasternodeEditor(QWidget):
         """Get MasternodeAnnounce keyword args from this widget's data."""
         kwargs = {}
         kwargs['alias'] = str(self.alias_edit.text())
-
-        vin = self.vin_edit.get_dict()
-        kwargs['vin'] = vin
-
+        kwargs['vin'] = self.vin_edit.get_dict()
         kwargs['addr'] = self.addr_edit.get_addr()
         protocol_version = str(self.protocol_version_edit.text())
         if protocol_version:
             kwargs['protocol_version'] = int(protocol_version)
         # Don't pass whether announced_checkbox is checked, because a new
         # masternode can't be announced already.
-
         return kwargs
 
 class MasternodeOutputsWidget(QListWidget):
@@ -248,6 +236,9 @@ class SignAnnounceWidget(QWidget):
             self.scan_for_outputs(include_frozen_checkbox.isChecked())
         self.scan_outputs_button.clicked.connect(on_scan_outputs)
 
+        # Displays the status of the masternode.
+        self.status_edit = QLineEdit()
+        self.status_edit.setReadOnly(True)
         self.valid_outputs_list = MasternodeOutputsWidget()
         self.valid_outputs_list.outputSelected.connect(self.set_output)
 
@@ -271,31 +262,49 @@ class SignAnnounceWidget(QWidget):
         self.sign_button.setEnabled(False)
         self.sign_button.clicked.connect(self.sign_announce)
 
+        status_box = QHBoxLayout()
+        status_box.setContentsMargins(0, 0, 0, 0)
+        status_box.addWidget(QLabel(_('Status:')))
+        status_box.addWidget(self.status_edit, stretch=1)
+
         valid_outputs_box = QVBoxLayout()
+        valid_outputs_box.setContentsMargins(0, 0, 0, 0)
         valid_outputs_box.addWidget(QLabel(_('Masternode Outputs:')))
         valid_outputs_box.addWidget(self.valid_outputs_list)
 
+        vbox = QVBoxLayout()
+        vbox.addLayout(status_box)
+        vbox.addLayout(util.Buttons(include_frozen_checkbox, self.scan_outputs_button))
+        vbox.addLayout(valid_outputs_box)
+
         form = QFormLayout()
-        form.addRow(util.Buttons(include_frozen_checkbox, self.scan_outputs_button))
-        form.addRow(valid_outputs_box)
         form.addRow(_('Alias:'), self.alias_edit)
         form.addRow(_('1000 DASH Output:'), self.collateral_edit)
         form.addRow(_('Masternode DASH Address:'), self.delegate_edit)
-        form.addRow(util.Buttons(self.sign_button))
-        self.setLayout(form)
+        vbox.addLayout(form)
+        vbox.addLayout(util.Buttons(self.sign_button))
+        self.setLayout(vbox)
 
     def set_mapper_index(self, row):
+        """Set the row that the data widget mapper should use."""
         self.valid_outputs_list.clear()
+        self.status_edit.clear()
+        self.status_edit.setStyleSheet(util.BLACK_FG)
         self.mapper.setCurrentIndex(row)
         mn = self.dialog.masternodes_widget.masternode_for_row(row)
         can_scan, can_sign = True, True
         # Disable both buttons if the masternode has already been activated.
         if mn.announced:
             can_scan, can_sign = False, False
+            self.status_edit.setText(mn.alias + _(' has been activated.'))
         # Disable the scan_outputs button if the masternode already has an assigned output.
         elif mn.vin.get('value', 0) == COIN * 1000:
             can_scan = False
             self.valid_outputs_list.add_output(mn.vin)
+            self.status_edit.setText(mn.alias + _(' can be activated.'))
+        else:
+            self.status_edit.setText(mn.alias + _(' requires a collateral 1000 DASH output.'))
+            can_sign = False
 
         self.scan_outputs_button.setEnabled(can_scan)
         self.sign_button.setEnabled(can_sign)
@@ -318,7 +327,8 @@ class SignAnnounceWidget(QWidget):
             self.valid_outputs_list.add_outputs(coins)
             self.sign_button.setEnabled(True)
         else:
-            self.collateral_edit.set_str(_('There are no 1000 DASH outputs in your wallet.:'))
+            self.status_edit.setText(_('No 1000 DASH outputs were found.'))
+            self.status_edit.setStyleSheet(util.RED_FG)
 
     def sign_announce(self):
         """Set the masternode's vin and sign an announcement."""
