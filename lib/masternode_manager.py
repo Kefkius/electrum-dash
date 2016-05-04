@@ -80,15 +80,17 @@ class MasternodeManager(object):
     def remove_masternode(self, alias, save = True):
         """Remove the masternode labelled as alias."""
         mn = self.get_masternode(alias)
-        address = bitcoin.public_key_to_bc_address(mn.delegate_key.decode('hex'))
+        # Don't delete the delegate key if another masternode uses it too.
+        if not any(i.alias != mn.alias and i.delegate_key == mn.delegate_key for i in self.masternodes):
+            address = bitcoin.public_key_to_bc_address(mn.delegate_key.decode('hex'))
+            self.wallet.delete_masternode_delegate(address, save)
 
         self.masternodes.remove(mn)
-        self.wallet.delete_masternode_delegate(address, save)
         if save:
             self.save()
 
-    def get_masternode_output_by_conf(self, alias):
-        """Attempt to retrieve the transaction imported from alias' configuration file."""
+    def populate_masternode_output(self, alias):
+        """Attempt to populate the masternode's data using its output."""
         mn = self.get_masternode(alias)
         if not mn:
             return
@@ -261,7 +263,7 @@ class MasternodeManager(object):
                     delegate_key = public_key, addr=addr)
             self.add_masternode(mn)
             try:
-                self.get_masternode_output_by_conf(mn.alias)
+                self.populate_masternode_output(mn.alias)
             except Exception as e:
                 print_error(str(e))
             num_imported += 1

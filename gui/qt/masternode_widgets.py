@@ -67,7 +67,7 @@ class PrevOutWidget(QWidget):
     """Widget that represents a previous outpoint."""
     def __init__(self, parent=None):
         super(PrevOutWidget, self).__init__(parent)
-        self.vin = None
+        self.vin = {}
         self.hash_edit = QLineEdit()
         self.hash_edit.setPlaceholderText(_('The TxID of your 1000 DASH output'))
         self.index_edit = QLineEdit()
@@ -94,7 +94,10 @@ class PrevOutWidget(QWidget):
         return self.set_str(str(value))
 
     def get_str(self):
-        return '%s:%s-%s' % (str(self.hash_edit.text()), self.index_edit.text(), self.address_edit.text())
+        values = [str(self.hash_edit.text()), str(self.index_edit.text()), str(self.address_edit.text())]
+        values.append(str(self.vin.get('value', '')))
+        values.append(self.vin.get('scriptSig', ''))
+        return ':'.join(values)
 
     def set_str(self, value):
         s = str(value).split(':')
@@ -203,7 +206,6 @@ class MasternodeOutputsWidget(QListWidget):
     def __init__(self, parent=None):
         super(MasternodeOutputsWidget, self).__init__(parent)
         self.outputs = {}
-        self.selected_output = None
         self.setSelectionMode(QAbstractItemView.SingleSelection)
         self.selectionModel().selectionChanged.connect(self.on_selection_changed)
 
@@ -223,15 +225,13 @@ class MasternodeOutputsWidget(QListWidget):
     def clear(self):
         super(MasternodeOutputsWidget, self).clear()
         self.outputs.clear()
-        self.selected_output = None
 
     def on_selection_changed(self, selected, deselected):
         """Emit the selected output."""
         items = self.selectedItems()
         if not items:
             return
-        self.selected_output = self.outputs[str(items[0].text())]
-        self.outputSelected.emit(self.selected_output)
+        self.outputSelected.emit(self.outputs[str(items[0].text())])
 
 class SignAnnounceWidget(QWidget):
     """Widget that displays information about signing a Masternode Announce."""
@@ -255,12 +255,21 @@ class SignAnnounceWidget(QWidget):
         self.collateral_edit = PrevOutWidget()
         self.delegate_edit = QLineEdit()
 
+        for i in [self.alias_edit, self.collateral_edit, self.delegate_edit]:
+            i.setReadOnly(True)
+
+        self.mapper = QDataWidgetMapper()
+        self.mapper.setSubmitPolicy(QDataWidgetMapper.ManualSubmit)
+        self.mapper.setModel(self.dialog.masternodes_widget.proxy_model)
+
+        model = self.dialog.masternodes_widget.model
+        self.mapper.addMapping(self.alias_edit, model.ALIAS)
+        self.mapper.addMapping(self.collateral_edit, model.VIN, 'string')
+        self.mapper.addMapping(self.delegate_edit, model.DELEGATE)
+
         self.sign_button = QPushButton(_('Activate Masternode'))
         self.sign_button.setEnabled(False)
         self.sign_button.clicked.connect(self.sign_announce)
-
-        for i in [self.alias_edit, self.collateral_edit, self.delegate_edit]:
-            i.setReadOnly(True)
 
         valid_outputs_box = QVBoxLayout()
         valid_outputs_box.addWidget(QLabel(_('Masternode Outputs:')))
@@ -275,25 +284,21 @@ class SignAnnounceWidget(QWidget):
         form.addRow(util.Buttons(self.sign_button))
         self.setLayout(form)
 
-    def set_masternode(self, mn):
-        # Disable if the masternode was already activated.
-        self.setEnabled(True)
-        self.clear_fields()
-        self.delegate_edit.clear()
-        self.alias_edit.setText(mn.alias)
+    def set_mapper_index(self, row):
+        self.valid_outputs_list.clear()
+        self.mapper.setCurrentIndex(row)
+        mn = self.dialog.masternodes_widget.masternode_for_row(row)
+        can_scan, can_sign = True, True
+        # Disable both buttons if the masternode has already been activated.
         if mn.announced:
-            self.setEnabled(False)
-            return
-        # Fill in the collateral if the masternode already has it.
-        if mn.vin.get('value', 0) == COIN * 1000:
-            self.collateral_edit.set_dict(mn.vin)
+            can_scan, can_sign = False, False
+        # Disable the scan_outputs button if the masternode already has an assigned output.
+        elif mn.vin.get('value', 0) == COIN * 1000:
+            can_scan = False
             self.valid_outputs_list.add_output(mn.vin)
-            self.valid_outputs_list.setCurrentRow(0)
-            self.scan_outputs_button.setEnabled(False)
-            self.sign_button.setEnabled(True)
-        # Fill in the delegate key's address.
-        if mn.delegate_key:
-            self.delegate_edit.setText(bitcoin.public_key_to_bc_address(mn.delegate_key.decode('hex')))
+
+        self.scan_outputs_button.setEnabled(can_scan)
+        self.sign_button.setEnabled(can_sign)
 
     def set_output(self, vin):
         """Set the masternode's output to the selected one."""
@@ -304,7 +309,7 @@ class SignAnnounceWidget(QWidget):
 
         If one or more is found, populate the list and enable the sign button.
         """
-        self.clear_fields()
+        self.valid_outputs_list.clear()
         exclude_frozen = not include_frozen
 
         coins = self.manager.get_masternode_outputs(exclude_frozen=exclude_frozen)
@@ -317,26 +322,6 @@ class SignAnnounceWidget(QWidget):
 
     def sign_announce(self):
         """Set the masternode's vin and sign an announcement."""
-        # Make sure that we have the key for the delegate address.
-        delegate_addr = str(self.delegate_edit.text())
-        if not delegate_addr:
-            QMessageBox.warning(self, _('Error'), _('You must enter your masternode\'s address in the previous tab.'))
-            return
+        self.mapper.submit()
+        self.dialog.sign_announce(str(self.alias_edit.text()))
 
-        try:
-            delegate_key = self.manager.get_delegate_pubkey(delegate_addr)
-        except Exception as e:
-            QMessageBox.critical(self, _('Error'), _(str(e)))
-            return
-
-        mn = self.manager.get_masternode(str(self.alias_edit.text()))
-        mn.vin = self.valid_outputs_list.selected_output
-        mn.collateral_key = self.manager.wallet.get_public_keys(mn.vin['address'])[0]
-        mn.delegate_key = delegate_key
-        self.dialog.sign_announce(mn.alias)
-
-    def clear_fields(self):
-        self.collateral_edit.clear()
-        self.scan_outputs_button.setEnabled(True)
-        self.sign_button.setEnabled(False)
-        self.valid_outputs_list.clear()

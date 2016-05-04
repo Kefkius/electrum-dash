@@ -146,13 +146,18 @@ class MasternodesModel(QAbstractTableModel):
         elif i == self.ANNOUNCED:
             mn.announced = value.toBool()
         elif i == self.VIN:
-            return False
+            s = str(value.toString()).split(':')
+            mn.vin['prevout_hash'] = s[0]
+            mn.vin['prevout_n'] = int(s[1]) if s[1] else 0
+            mn.vin['address'] = s[2]
+            mn.vin['value'] = int(s[3]) if s[3] else 0
+            mn.vin['scriptSig'] = s[4]
         elif i == self.ADDR:
             s = str(value.toString()).split(':')
             mn.addr.ip = s[0]
             mn.addr.port = int(s[1])
         elif i == self.COLLATERAL:
-            return False
+            return True
         elif i == self.DELEGATE:
             address = str(value.toString())
             try:
@@ -199,6 +204,15 @@ class MasternodesWidget(QWidget):
         vbox.setContentsMargins(0, 0, 0, 0)
         vbox.addWidget(self.view)
         self.setLayout(vbox)
+
+    def select_masternode(self, alias):
+        """Select the row that represents alias."""
+        for i in range(self.proxy_model.rowCount()):
+            idx = self.proxy_model.index(i, 0)
+            mn_alias = str(self.proxy_model.data(idx).toString())
+            if mn_alias == alias:
+                self.view.selectRow(i)
+                break
 
     def refresh_items(self):
         self.model.dataChanged.emit(QModelIndex(), QModelIndex())
@@ -377,6 +391,7 @@ class MasternodeDialog(QDialog):
         """Delete the masternode that is being viewed."""
         mn = self.selected_masternode()
         self.masternodes_widget.remove_masternode(mn.alias)
+        self.masternodes_widget.view.selectRow(0)
 
     def save_current_masternode(self, as_new=False):
         """Save the masternode that is being viewed.
@@ -394,32 +409,28 @@ class MasternodeDialog(QDialog):
                 QMessageBox.critical(self, _('Error'), _(str(e)))
                 return
 
+        alias = str(self.masternode_editor.alias_edit.text())
         # Construct a new masternode.
         if as_new:
             kwargs = self.masternode_editor.get_masternode_args()
-            try:
-                collateral_key = self.manager.wallet.get_public_keys(kwargs['vin']['address'])[0]
-            except Exception as e:
-                print_error(str(e))
-                collateral_key = ''
-            kwargs['collateral_key'] = collateral_key
             kwargs['delegate_key'] = delegate_pubkey
             del kwargs['vin']
             self.mapper.revert()
             self.masternodes_widget.add_masternode(MasternodeAnnounce(**kwargs))
-            self.mapper.toLast()
         else:
             self.mapper.submit()
         self.manager.save()
+        self.masternodes_widget.select_masternode(alias)
 
     def on_view_selection_changed(self, selected, deselected):
         """Update the data widget mapper."""
         try:
             idx = selected.indexes()[0]
             self.mapper.setCurrentIndex(idx.row())
-            self.sign_announce_widget.set_masternode(self.selected_masternode())
+            self.sign_announce_widget.set_mapper_index(idx.row())
         except Exception:
             self.mapper.setCurrentIndex(0)
+            self.sign_announce_widget.set_mapper_index(0)
 
     def on_editor_alias_changed(self, text):
         """Enable or disable the 'Save As New Masternode' button.
@@ -458,6 +469,9 @@ class MasternodeDialog(QDialog):
             if pw is None:
                 return
 
+        # Make sure the masternode is populated with everything we can find out about it.
+        self.manager.populate_masternode_output(alias)
+
         self.sign_announce_widget.sign_button.setEnabled(False)
         success = [False]
 
@@ -492,8 +506,8 @@ class MasternodeDialog(QDialog):
                 print_error('Failed to broadcast MasternodeAnnounce')
 
         def on_waiting_done():
-            self.sign_announce_widget.set_masternode(self.manager.get_masternode(alias))
             self.masternodes_widget.refresh_items()
+            self.masternodes_widget.select_masternode(alias)
 
         self.waiting_dialog = util.WaitingDialog(self, _('Broadcasting masternode...'), send_thread, on_send_successful, on_waiting_done)
         self.waiting_dialog.start()
