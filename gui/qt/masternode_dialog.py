@@ -383,7 +383,7 @@ class MasternodeDialog(QDialog):
         # Make sure that we have the key for the delegate address.
         delegate_addr = str(self.masternode_editor.delegate_key_edit.text())
         try:
-            delegate_pubkey = self.manager.wallet.get_public_keys(delegate_addr)[0]
+            delegate_pubkey = self.manager.get_delegate_pubkey(delegate_addr)
         except Exception as e:
             QMessageBox.critical(self, _('Error'), _(str(e)))
             return

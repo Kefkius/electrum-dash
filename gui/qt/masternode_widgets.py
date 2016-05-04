@@ -284,12 +284,6 @@ class SignAnnounceWidget(QWidget):
         if mn.announced:
             self.setEnabled(False)
             return
-        # Attempt to retrieve the masternode's output if it's imported.
-        try:
-            found_tx = self.manager.get_masternode_output_by_conf(mn.alias)
-        except Exception as e:
-            self.print_error(str(e))
-            found_tx = False
         # Fill in the collateral if the masternode already has it.
         if mn.vin.get('value', 0) == COIN * 1000:
             self.collateral_edit.set_dict(mn.vin)
@@ -300,10 +294,6 @@ class SignAnnounceWidget(QWidget):
         # Fill in the delegate key's address.
         if mn.delegate_key:
             self.delegate_edit.setText(bitcoin.public_key_to_bc_address(mn.delegate_key.decode('hex')))
-
-        # If successful at finding the config's output, update the view.
-        if found_tx:
-            self.manager.masternodes_widget.refresh_items()
 
     def set_output(self, vin):
         """Set the masternode's output to the selected one."""
@@ -334,7 +324,7 @@ class SignAnnounceWidget(QWidget):
             return
 
         try:
-            delegate_key = self.manager.wallet.get_public_keys(delegate_addr)[0]
+            delegate_key = self.manager.get_delegate_pubkey(delegate_addr)
         except Exception as e:
             QMessageBox.critical(self, _('Error'), _(str(e)))
             return

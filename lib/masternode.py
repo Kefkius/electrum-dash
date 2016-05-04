@@ -104,12 +104,13 @@ class MasternodePing(object):
         If delegate_pubkey is specified, it will be used to verify the signature.
         If current_time is specified, sig_time will not be updated.
         """
-        if current_time is None:
-            current_time = int(time.time())
-        self.sig_time = current_time
+        update_time = True
+        if current_time is not None:
+            self.sig_time = int(time.time())
+            update_time = False
 
         eckey = bitcoin.regenerate_key(wif)
-        serialized = unicode(self.serialize_for_sig(update_time=False)).encode('utf-8')
+        serialized = unicode(self.serialize_for_sig(update_time=update_time)).encode('utf-8')
 
         if not delegate_pubkey:
             delegate_pubkey = bitcoin.public_key_from_private_key(wif).decode('hex')
