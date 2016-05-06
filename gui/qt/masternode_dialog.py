@@ -398,8 +398,10 @@ class MasternodeDialog(QDialog):
     def delete_current_masternode(self):
         """Delete the masternode that is being viewed."""
         mn = self.selected_masternode()
-        self.masternodes_widget.remove_masternode(mn.alias)
-        self.masternodes_widget.view.selectRow(0)
+        if QMessageBox.question(self, _('Delete'), _('Do you want to remove the masternode configuration for') + ' %s?'%mn.alias,
+                    QMessageBox.Yes | QMessageBox.No, QMessageBox.No) == QMessageBox.Yes:
+            self.masternodes_widget.remove_masternode(mn.alias)
+            self.masternodes_widget.view.selectRow(0)
 
     def save_current_masternode(self, as_new=False):
         """Save the masternode that is being viewed.
