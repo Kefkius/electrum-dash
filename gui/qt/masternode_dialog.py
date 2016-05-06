@@ -87,7 +87,7 @@ class MasternodesModel(QAbstractTableModel):
         data = None
         if not index.isValid():
             return QVariant(data)
-        if role not in [Qt.DisplayRole, Qt.EditRole, Qt.CheckStateRole, Qt.ToolTipRole]:
+        if role not in [Qt.DisplayRole, Qt.EditRole, Qt.CheckStateRole, Qt.ToolTipRole, Qt.FontRole]:
             return None
 
         mn = self.masternodes[index.row()]
@@ -113,6 +113,8 @@ class MasternodesModel(QAbstractTableModel):
             scriptsig = mn.vin.get('scriptSig', '')
             if role == Qt.EditRole:
                 data = ':'.join([txid, out_n, addr, value, scriptsig])
+            elif role == Qt.FontRole:
+                data = util.MONOSPACE_FONT
             else:
                 if all(attr for attr in [txid, out_n, addr]):
                     data = '%s:%s' % (txid, out_n)
@@ -122,10 +124,14 @@ class MasternodesModel(QAbstractTableModel):
             data = mn.collateral_key
             if role in [Qt.EditRole, Qt.DisplayRole, Qt.ToolTipRole] and data:
                 data = bitcoin.public_key_to_bc_address(data.decode('hex'))
+            elif role == Qt.FontRole:
+                data = util.MONOSPACE_FONT
         elif i == self.DELEGATE:
             data = mn.delegate_key
             if role in [Qt.EditRole, Qt.DisplayRole, Qt.ToolTipRole] and data:
                 data = bitcoin.public_key_to_bc_address(data.decode('hex'))
+            elif role == Qt.FontRole:
+                data = util.MONOSPACE_FONT
         elif i == self.ADDR:
             data = ''
             if mn.addr.ip:

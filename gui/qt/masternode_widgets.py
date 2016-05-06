@@ -77,6 +77,8 @@ class PrevOutWidget(QWidget):
 
         # Collection of fields so that it's easier to act on them all at once.
         self.fields = (self.hash_edit, self.index_edit, self.address_edit)
+        for i in self.fields:
+            i.setFont(QFont(util.MONOSPACE_FONT))
 
         form = QFormLayout()
         form.setContentsMargins(0, 0, 0, 0)
@@ -159,6 +161,7 @@ class MasternodeEditor(QWidget):
 
         self.addr_edit = NetworkAddressWidget()
         self.delegate_key_edit = QLineEdit()
+        self.delegate_key_edit.setFont(QFont(util.MONOSPACE_FONT))
         self.delegate_key_edit.setPlaceholderText(_('The address that your masternode will sign messages with'))
         self.protocol_version_edit = QLineEdit()
         self.protocol_version_edit.setText('70103')
@@ -204,7 +207,9 @@ class MasternodeOutputsWidget(QListWidget):
         """Add a valid output."""
         label = '%s:%s' % (d['prevout_hash'], d['prevout_n'])
         self.outputs[label] = d
-        self.addItem(label)
+        item = QListWidgetItem(label)
+        item.setFont(QFont(util.MONOSPACE_FONT))
+        self.addItem(item)
 
     def add_outputs(self, outputs):
         map(self.add_output, outputs)
@@ -245,6 +250,7 @@ class SignAnnounceWidget(QWidget):
         self.alias_edit = QLineEdit()
         self.collateral_edit = PrevOutWidget()
         self.delegate_edit = QLineEdit()
+        self.delegate_edit.setFont(QFont(util.MONOSPACE_FONT))
 
         for i in [self.alias_edit, self.collateral_edit, self.delegate_edit]:
             i.setReadOnly(True)
@@ -296,6 +302,7 @@ class SignAnnounceWidget(QWidget):
         # Disable both buttons if the masternode has already been activated.
         if mn.announced:
             can_scan, can_sign = False, False
+            self.valid_outputs_list.add_output(mn.vin)
             self.status_edit.setText(mn.alias + _(' has been activated.'))
         # Disable the scan_outputs button if the masternode already has an assigned output.
         elif mn.vin.get('value', 0) == COIN * 1000:
