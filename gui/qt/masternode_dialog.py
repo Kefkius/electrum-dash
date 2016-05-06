@@ -20,9 +20,9 @@ class MasternodesModel(QAbstractTableModel):
     ALIAS = 0
     ANNOUNCED = 1
     VIN = 2
-    ADDR = 3
-    COLLATERAL = 4
-    DELEGATE = 5
+    COLLATERAL = 3
+    DELEGATE = 4
+    ADDR = 5
     PROTOCOL_VERSION = 6
     TOTAL_FIELDS = 7
 
@@ -36,9 +36,9 @@ class MasternodesModel(QAbstractTableModel):
             {Qt.DisplayRole: 'Alias',},
             {Qt.DisplayRole: 'Activated',},
             {Qt.DisplayRole: 'Collateral',},
-            {Qt.DisplayRole: 'Address',},
             {Qt.DisplayRole: 'Collateral Key',},
             {Qt.DisplayRole: 'Delegate Key',},
+            {Qt.DisplayRole: 'Address',},
             {Qt.DisplayRole: 'Version',},
         ]
         for d in headers:
@@ -118,10 +118,6 @@ class MasternodesModel(QAbstractTableModel):
                     data = '%s:%s' % (txid, out_n)
                 else:
                     data = ''
-        elif i == self.ADDR:
-            data = ''
-            if mn.addr.ip:
-                data = str(mn.addr)
         elif i == self.COLLATERAL:
             data = mn.collateral_key
             if role in [Qt.EditRole, Qt.DisplayRole, Qt.ToolTipRole] and data:
@@ -130,6 +126,10 @@ class MasternodesModel(QAbstractTableModel):
             data = mn.delegate_key
             if role in [Qt.EditRole, Qt.DisplayRole, Qt.ToolTipRole] and data:
                 data = bitcoin.public_key_to_bc_address(data.decode('hex'))
+        elif i == self.ADDR:
+            data = ''
+            if mn.addr.ip:
+                data = str(mn.addr)
         elif i == self.PROTOCOL_VERSION:
             data = mn.protocol_version
 
@@ -152,10 +152,6 @@ class MasternodesModel(QAbstractTableModel):
             mn.vin['address'] = s[2]
             mn.vin['value'] = int(s[3]) if s[3] else 0
             mn.vin['scriptSig'] = s[4]
-        elif i == self.ADDR:
-            s = str(value.toString()).split(':')
-            mn.addr.ip = s[0]
-            mn.addr.port = int(s[1])
         elif i == self.COLLATERAL:
             return True
         elif i == self.DELEGATE:
@@ -165,6 +161,10 @@ class MasternodesModel(QAbstractTableModel):
             except Exception:
                 pubkey = self.manager.get_delegate_pubkey(address)
             mn.delegate_key = pubkey
+        elif i == self.ADDR:
+            s = str(value.toString()).split(':')
+            mn.addr.ip = s[0]
+            mn.addr.port = int(s[1])
         elif i == self.PROTOCOL_VERSION:
             version, ok = value.toInt()
             if not ok:

@@ -167,11 +167,11 @@ class MasternodeEditor(QWidget):
 
         form = QFormLayout()
         form.addRow(_('Alias:'), self.alias_edit)
-        form.addRow(_('Collateral DASH Output:'), self.vin_edit)
-        form.addRow(_('Address:'), self.addr_edit)
-        form.addRow(_('Masternode DASH Address:'), self.delegate_key_edit)
-        form.addRow(_('Protocol Version:'), self.protocol_version_edit)
         form.addRow(self.announced_checkbox)
+        form.addRow(_('Collateral DASH Output:'), self.vin_edit)
+        form.addRow(_('Masternode DASH Address:'), self.delegate_key_edit)
+        form.addRow(_('Address:'), self.addr_edit)
+        form.addRow(_('Protocol Version:'), self.protocol_version_edit)
 
         self.setLayout(form)
 
