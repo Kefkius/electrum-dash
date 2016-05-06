@@ -6,6 +6,9 @@ from blockchain import Blockchain
 from masternode import MasternodeAnnounce, NetworkAddress
 from util import AlreadyHaveAddress, print_error
 
+# From masternode.h
+MASTERNODE_MIN_CONFIRMATIONS = 15
+
 MasternodeConfLine = namedtuple('MasternodeConfLine', ('alias', 'addr',
         'wif', 'txid', 'output_index'))
 
@@ -161,6 +164,10 @@ class MasternodeManager(object):
             raise Exception('Masternode delegate key is not specified')
         if not mn.addr.ip:
             raise Exception('Masternode has no IP address')
+        # Ensure that the collateral payment has >= MASTERNODE_MIN_CONFIRMATIONS.
+        confirmations, _ = self.wallet.get_confirmations(mn.vin['prevout_hash'])
+        if confirmations < MASTERNODE_MIN_CONFIRMATIONS:
+            raise Exception('Collateral payment must have at least %d confirmations (current: %d)' % (MASTERNODE_MIN_CONFIRMATIONS, confirmations))
         # Ensure that the masternode's vin is valid.
         if mn.vin.get('scriptSig') is None:
             mn.vin['scriptSig'] = ''
