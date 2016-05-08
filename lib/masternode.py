@@ -106,7 +106,7 @@ class MasternodePing(object):
         """
         update_time = True
         if current_time is not None:
-            self.sig_time = int(time.time())
+            self.sig_time = current_time
             update_time = False
 
         eckey = bitcoin.regenerate_key(wif)
@@ -278,13 +278,17 @@ class MasternodeAnnounce(object):
         return kwargs
 
     def sign(self, wif, current_time=None):
-        """Sign the masternode announce message."""
+        """Sign the masternode announce message.
+
+        If current_time is specified, sig_time will not be updated.
+        """
+        update_time = True
+        if current_time is not None:
+            self.sig_time = current_time
+            update_time = False
         eckey = bitcoin.regenerate_key(wif)
 
-        if current_time is None:
-            current_time = int(time.time())
-        self.sig_time = current_time
-        serialized = self.serialize_for_sig(update_time=False)
+        serialized = self.serialize_for_sig(update_time=update_time)
         self.sig = eckey.sign_message(serialized, bitcoin.is_compressed(wif),
                     bitcoin.public_key_to_bc_address(self.collateral_key.decode('hex')))
         return self.sig
