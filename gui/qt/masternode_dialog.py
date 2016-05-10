@@ -525,7 +525,7 @@ class MasternodeDialog(QDialog):
         self.waiting_dialog.start()
 
     def create_vote_tab(self):
-        self.proposals_widget = ProposalsWidget(self)
+        self.proposals_widget = ProposalsWidget(self, self.gui.proposals_list.get_model())
         vbox = QVBoxLayout()
         vbox.addWidget(self.proposals_widget)
 

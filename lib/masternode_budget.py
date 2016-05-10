@@ -1,10 +1,16 @@
 import time
+import string
 
 import bitcoin
 from transaction import BCDataStream, Transaction
 import util
+from i18n import _
 
 BUDGET_PAYMENTS_CYCLE_BLOCKS = 50 if bitcoin.TESTNET else 16616
+
+safe_characters = string.ascii_letters + " .,;-_/:?@()"
+def is_safe(s):
+    return all(i in safe_characters for i in s)
 
 class BudgetProposal(object):
     """A budget proposal.
@@ -18,6 +24,7 @@ class BudgetProposal(object):
         - address (str): Payment recipient.
         - fee_txid (str): Collateral transaction ID.
         - submitted (bool): Whether the proposal has been submitted.
+        - rejected (bool): Whether the proposal was rejected as invalid.
 
     """
     @classmethod
@@ -25,7 +32,7 @@ class BudgetProposal(object):
         return cls(**util.utfify(d))
 
     def __init__(self, proposal_name='', proposal_url='', start_block=0, end_block=0,
-                payment_amount=0, address='', fee_txid='', submitted=False):
+                payment_amount=0, address='', fee_txid='', submitted=False, rejected=False):
         self.proposal_name = proposal_name
         self.proposal_url = proposal_url
         self.start_block = start_block
@@ -34,6 +41,7 @@ class BudgetProposal(object):
         self.address = address
         self.fee_txid = fee_txid
         self.submitted = submitted
+        self.rejected = rejected
 
     def get_hash(self):
         vds = BCDataStream()
@@ -48,7 +56,7 @@ class BudgetProposal(object):
     def dump(self):
         kwargs = {}
         for i in ['proposal_name', 'proposal_url', 'start_block',
-                'end_block', 'payment_amount', 'address', 'fee_txid', 'submitted']:
+                'end_block', 'payment_amount', 'address', 'fee_txid', 'submitted', 'rejected']:
             kwargs[i] = getattr(self, i)
         return kwargs
 
@@ -61,6 +69,35 @@ class BudgetProposal(object):
         payments_start = self.start_block - self.start_block % BUDGET_PAYMENTS_CYCLE_BLOCKS
         self.end_block = payments_start + BUDGET_PAYMENTS_CYCLE_BLOCKS * count
         return True
+
+    def check_valid(self):
+        """Evaluate whether this proposal is valid."""
+        if not self.proposal_name:
+            raise ValueError(_('A proposal name is required.'))
+        elif len(self.proposal_name) > 20:
+            raise ValueError(_('Proposal names have a limit of 20 characters.'))
+        if not is_safe(self.proposal_name):
+            raise ValueError(_('Unsafe characters in proposal name.'))
+
+        if not self.proposal_url:
+            raise ValueError(_('A proposal URL is required.'))
+        elif len(self.proposal_url) > 64:
+            raise ValueError(_('Proposal URLs have a limit of 64 characters.'))
+        if not is_safe(self.proposal_url):
+            raise ValueError(_('Unsafe characters in proposal URL.'))
+
+        if self.end_block < self.start_block:
+            raise ValueError(_('End block must be after start block.'))
+
+        if not bitcoin.is_address(self.address):
+            raise ValueError(_('Invalid address:') + ' %s' % self.address)
+        addrtype, h160 = bitcoin.bc_address_to_hash_160(self.address)
+        if addrtype != bitcoin.PUBKEY_ADDR:
+            raise ValueError(_('Only P2PKH addresses are currently supported.'))
+
+        if self.payment_amount < bitcoin.COIN:
+            raise ValueError(_('Payments must be at least 1 DASH.'))
+
 
 class BudgetVote(object):
     """A vote on a budget proposal."""
