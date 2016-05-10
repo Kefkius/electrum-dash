@@ -467,3 +467,24 @@ class MasternodeManager(object):
                 'payment_amount': int(result['MonthlyPayment']), 'address': result['PaymentAddress'],
                 'fee_txid': result['FeeTXHash']}
         return BudgetProposal(**kwargs)
+
+    def retrieve_proposals(self):
+        """Retrieve proposals from the network."""
+        proposals = []
+        def on_list_proposals(proposals, r):
+            r = r['result']
+            try:
+                for k, result in r.items():
+                    kwargs = {'proposal_name': result['Name'], 'proposal_url': result['URL'],
+                            'start_block': int(result['BlockStart']), 'end_block': int(result['BlockEnd']),
+                            'payment_amount': int(result['MonthlyPayment']), 'address': result['PaymentAddress'],
+                            'fee_txid': result['FeeTXHash']}
+                    proposals.append(BudgetProposal(**kwargs))
+            finally:
+                self.network_event.set()
+
+        callback = lambda r: on_list_proposals(proposals, r)
+        self.network_event.clear()
+        self.wallet.network.send([('masternode.budget.list', [])], callback)
+        self.network_event.wait()
+        return proposals

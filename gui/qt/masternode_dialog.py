@@ -12,6 +12,7 @@ from electrum_dash.masternode_manager import parse_masternode_conf
 from electrum_dash.util import print_error
 
 from masternode_widgets import *
+from masternode_budget_widgets import *
 import util
 
 
@@ -263,6 +264,7 @@ class MasternodeDialog(QDialog):
         self.tabs.addTab(self.create_view_masternode_tab(), _('View Masternode'))
         self.tabs.addTab(self.create_sign_announce_tab(), _('Activate Masternode'))
         self.tabs.addTab(self.create_masternode_conf_tab(), _('Masternode.conf'))
+        self.tabs.addTab(self.create_vote_tab(), _('Vote'))
 
         # Connect to the selection signal so we can update the widget mapper.
         self.masternodes_widget.view.selectionModel().selectionChanged.connect(self.on_view_selection_changed)
@@ -520,4 +522,48 @@ class MasternodeDialog(QDialog):
             self.masternodes_widget.select_masternode(alias)
 
         self.waiting_dialog = util.WaitingDialog(self, _('Broadcasting masternode...'), send_thread, on_send_successful, on_waiting_done)
+        self.waiting_dialog.start()
+
+    def create_vote_tab(self):
+        self.proposals_widget = ProposalsWidget(self)
+        vbox = QVBoxLayout()
+        vbox.addWidget(self.proposals_widget)
+
+        w = QWidget()
+        w.setLayout(vbox)
+        return w
+
+    def cast_vote(self, proposal_name, vote_yes):
+        """Vote for a proposal. This is called by ProposalsWidget."""
+        vote_choice = 'yes' if vote_yes else 'no'
+        mn = self.selected_masternode()
+        if not mn.announced:
+            return QMessageBox.critical(self, _('Cannot Vote'), _('Masternode has not been activated.'))
+
+        pw = None
+        if self.manager.wallet.use_encryption:
+            pw = self.gui.password_dialog(msg=_('Please enter your password to vote.'))
+            if pw is None:
+                return
+
+
+        self.proposals_widget.editor.vote_button.setEnabled(False)
+        result = ['', False]
+
+        def vote_thread():
+            return self.manager.vote(mn.alias, proposal_name, vote_choice, pw)
+
+        def on_vote_successful(errmsg, res):
+            result[0:2] = (errmsg, res)
+
+        # Show the result.
+        def on_waiting_done():
+            if result[1]:
+                QMessageBox.information(self, _('Success'), _('Successfully voted'))
+            else:
+                QMessageBox.critical(self, _('Error Voting'), _(result[0]))
+            self.proposals_widget.editor.vote_button.setEnabled(True)
+
+
+        self.waiting_dialog = util.WaitingDialog(self, _('Voting...'), vote_thread, on_vote_successful, on_waiting_done)
         self.waiting_dialog.start()
