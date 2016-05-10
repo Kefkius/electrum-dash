@@ -431,6 +431,14 @@ class Abstract_Wallet(object):
         ping.sign(sec)
         return True
 
+    def sign_budget_vote(self, vote, address, password):
+        """Sign a Budget Vote for address."""
+        t = self.masternode_delegates.get(address)
+        if not t:
+            raise Exception('Private key not known for address %s' % address)
+        sec = pw_decode(t[1], password)
+        return vote.sign(sec)
+
     def sign_message(self, address, message, password):
         keys = self.get_private_key(address, password)
         assert len(keys) == 1
