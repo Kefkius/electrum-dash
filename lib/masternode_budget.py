@@ -7,6 +7,7 @@ import util
 from i18n import _
 
 BUDGET_PAYMENTS_CYCLE_BLOCKS = 50 if bitcoin.TESTNET else 16616
+SUBSIDY_HALVING_INTERVAL = 210240
 
 safe_characters = string.ascii_letters + " .,;-_/:?@()"
 def is_safe(s):
@@ -97,6 +98,20 @@ class BudgetProposal(object):
 
         if self.payment_amount < bitcoin.COIN:
             raise ValueError(_('Payments must be at least 1 DASH.'))
+
+        # Calculate max budget.
+        subsidy = 5 * bitcoin.COIN
+        if bitcoin.TESTNET:
+            for i in range(46200, self.start_block + 1, SUBSIDY_HALVING_INTERVAL):
+                subsidy -= subsidy/14
+        else:
+            for i in range(SUBSIDY_HALVING_INTERVAL, self.start_block + 1, SUBSIDY_HALVING_INTERVAL):
+                subsidy -= subsidy/14
+
+        # 10%
+        total_budget = ((subsidy/100)*10) * BUDGET_PAYMENTS_CYCLE_BLOCKS
+        if self.payment_amount > total_budget:
+            raise ValueError(_('Payment is more than max') + ' (%s).' % util.format_satoshis_plain(total_budget))
 
 
 class BudgetVote(object):
