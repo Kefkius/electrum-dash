@@ -25,18 +25,22 @@ class ProposalsModel(QAbstractTableModel):
     """Model of budget proposals."""
     NAME = 0
     URL = 1
-    START_BLOCK = 2
-    END_BLOCK = 3
-    AMOUNT = 4
-    ADDRESS = 5
-    TXID = 6
-    TOTAL_FIELDS = 7
+    YES_COUNT = 2
+    NO_COUNT = 3
+    START_BLOCK = 4
+    END_BLOCK = 5
+    AMOUNT = 6
+    ADDRESS = 7
+    TXID = 8
+    TOTAL_FIELDS = 9
     def __init__(self, parent=None):
         super(ProposalsModel, self).__init__(parent)
         self.proposals = []
         headers = [
             {Qt.DisplayRole: _('Name'),},
             {Qt.DisplayRole: _('URL'),},
+            {Qt.DisplayRole: _('Yes Votes'),},
+            {Qt.DisplayRole: _('No Votes'),},
             {Qt.DisplayRole: _('Start Block'),},
             {Qt.DisplayRole: _('End Block'),},
             {Qt.DisplayRole: _('Amount'),},
@@ -84,6 +88,10 @@ class ProposalsModel(QAbstractTableModel):
             data = p.proposal_name
         elif c == self.URL:
             data = p.proposal_url
+        elif c == self.YES_COUNT:
+            data = p.yes_count
+        elif c == self.NO_COUNT:
+            data = p.no_count
         elif c == self.START_BLOCK:
             data = p.start_block
             if role == Qt.FontRole:
@@ -390,12 +398,14 @@ class ProposalsTab(QWidget):
 class ProposalsTreeWidget(util.MyTreeWidget):
     """Widget compatible with other wallet GUI tabs."""
     def __init__(self, parent=None):
-        super(ProposalsTreeWidget, self).__init__(parent, self.create_menu, [_('Name'), _('URL'), _('Start Block'), _('End Block'), _('Amount'),
-                    _('Address'), _('Fee Tx')], 0)
+        super(ProposalsTreeWidget, self).__init__(parent, self.create_menu, [_('Name'), _('URL'), _('Yes Votes'), _('No Votes'),
+                    _('Start Block'), _('End Block'), _('Amount'), _('Address'), _('Fee Tx')], 0)
 
         header = self.header()
         header.setResizeMode(ProposalsModel.NAME, QHeaderView.ResizeToContents)
         header.setResizeMode(ProposalsModel.URL, QHeaderView.Stretch)
+        header.setResizeMode(ProposalsModel.YES_COUNT, QHeaderView.ResizeToContents)
+        header.setResizeMode(ProposalsModel.NO_COUNT, QHeaderView.ResizeToContents)
         header.setResizeMode(ProposalsModel.ADDRESS, QHeaderView.ResizeToContents)
         header.setResizeMode(ProposalsModel.TXID, QHeaderView.ResizeToContents)
 
@@ -417,6 +427,8 @@ class ProposalsTreeWidget(util.MyTreeWidget):
             get_data = lambda col, row=r: self.model.data(self.model.index(row, col))
             name = _(str(get_data(ProposalsModel.NAME).toString()))
             url = _(str(get_data(ProposalsModel.URL).toString()))
+            yes_count = str(get_data(ProposalsModel.YES_COUNT).toString())
+            no_count = str(get_data(ProposalsModel.NO_COUNT).toString())
             start_block = str(get_data(ProposalsModel.START_BLOCK).toString())
             end_block = str(get_data(ProposalsModel.END_BLOCK).toString())
             amount = str(get_data(ProposalsModel.AMOUNT).toString())
@@ -424,7 +436,7 @@ class ProposalsTreeWidget(util.MyTreeWidget):
             txid = str(get_data(ProposalsModel.TXID).toString())
             display_txid = '%s...%s' % (txid[0:8], txid[-8:])
 
-            item = QTreeWidgetItem( [name, url, start_block, end_block, amount, address, display_txid] )
+            item = QTreeWidgetItem( [name, url, yes_count, no_count, start_block, end_block, amount, address, display_txid] )
             item.setFont(ProposalsModel.START_BLOCK, QFont(util.MONOSPACE_FONT))
             item.setFont(ProposalsModel.END_BLOCK, QFont(util.MONOSPACE_FONT))
             item.setFont(ProposalsModel.ADDRESS, QFont(util.MONOSPACE_FONT))
