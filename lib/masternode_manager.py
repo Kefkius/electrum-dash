@@ -507,7 +507,7 @@ class MasternodeManager(object):
     def proposals_subscription_response(self, response):
         """Callback for when proposals on the network change."""
         proposals = []
-        r = response['result']
+        r = response['result'] if not response['params'] else response['params'][0]
 
         for k, result in r.items():
             kwargs = {'proposal_name': result['Name'], 'proposal_url': result['URL'],
@@ -516,5 +516,6 @@ class MasternodeManager(object):
                     'fee_txid': result['FeeTXHash']}
             proposals.append(BudgetProposal(**kwargs))
 
+        print_error('Received updated budget proposal information')
         self.all_proposals = proposals
         self.wallet.network.trigger_callback('proposals')
