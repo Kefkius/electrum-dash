@@ -513,7 +513,8 @@ class MasternodeManager(object):
             kwargs = {'proposal_name': result['Name'], 'proposal_url': result['URL'],
                     'start_block': int(result['BlockStart']), 'end_block': int(result['BlockEnd']),
                     'payment_amount': int(result['MonthlyPayment']), 'address': result['PaymentAddress'],
-                    'fee_txid': result['FeeTXHash']}
+                    'fee_txid': result['FeeTXHash'],
+                    'yes_count': result['YesCount'], 'no_count': result['NoCount']}
             proposals.append(BudgetProposal(**kwargs))
 
         print_error('Received updated budget proposal information')

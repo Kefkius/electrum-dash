@@ -27,13 +27,18 @@ class BudgetProposal(object):
         - submitted (bool): Whether the proposal has been submitted.
         - rejected (bool): Whether the proposal was rejected as invalid.
 
+    Optional attributes used when displaying proposals from the network:
+        - yes_count (int): Number of votes in favor of the proposal.
+        - no_count (int): Number of votes against the proposal.
+
     """
     @classmethod
     def from_dict(cls, d):
         return cls(**util.utfify(d))
 
     def __init__(self, proposal_name='', proposal_url='', start_block=0, end_block=0,
-                payment_amount=0, address='', fee_txid='', submitted=False, rejected=False):
+                payment_amount=0, address='', fee_txid='', submitted=False, rejected=False,
+                yes_count=0, no_count=0):
         self.proposal_name = proposal_name
         self.proposal_url = proposal_url
         self.start_block = start_block
@@ -43,6 +48,9 @@ class BudgetProposal(object):
         self.fee_txid = fee_txid
         self.submitted = submitted
         self.rejected = rejected
+
+        self.yes_count = yes_count
+        self.no_count = no_count
 
     def get_hash(self):
         vds = BCDataStream()
