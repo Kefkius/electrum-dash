@@ -96,6 +96,8 @@ class MasternodeManager(object):
 
     def add_masternode(self, mn, save = True):
         """Add a new masternode."""
+        if any(i.alias == mn.alias for i in self.masternodes):
+            raise Exception('A masternode with alias "%s" already exists' % mn.alias)
         self.masternodes.append(mn)
         if save:
             self.save()
@@ -103,6 +105,8 @@ class MasternodeManager(object):
     def remove_masternode(self, alias, save = True):
         """Remove the masternode labelled as alias."""
         mn = self.get_masternode(alias)
+        if not mn:
+            raise Exception('Nonexistent masternode')
         # Don't delete the delegate key if another masternode uses it too.
         if not any(i.alias != mn.alias and i.delegate_key == mn.delegate_key for i in self.masternodes):
             address = bitcoin.public_key_to_bc_address(mn.delegate_key.decode('hex'))
@@ -116,6 +120,8 @@ class MasternodeManager(object):
         """Attempt to populate the masternode's data using its output."""
         mn = self.get_masternode(alias)
         if not mn:
+            return
+        if mn.announced:
             return
         txid = mn.vin.get('prevout_hash')
         prevout_n = mn.vin.get('prevout_n')
@@ -374,6 +380,8 @@ class MasternodeManager(object):
 
     def add_proposal(self, proposal, save = True):
         """Add a new proposal."""
+        if proposal in self.proposals:
+            raise Exception('Proposal already exists')
         self.proposals.append(proposal)
         if save:
             self.save()
