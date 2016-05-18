@@ -117,13 +117,6 @@ class NetworkProxy(util.DaemonThread):
                     if (method, params) in v:
                         callback = k
                         break
-                    # Special case for proposals.
-                    else:
-                        methods = [t[0] for t in v]
-                        # If the method matches and no params were supplied when subscribing, callback.
-                        if method in methods and not v[methods.index(method)][1]:
-                            callback = k
-                            break
                 else:
                     print_error( "received unexpected notification", method, params)
                     return

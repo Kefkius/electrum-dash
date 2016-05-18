@@ -66,6 +66,8 @@ class MasternodeManager(object):
         self.config = config
         # List of all proposals on the network.
         self.all_proposals = []
+        # Subscribed masternode statuses.
+        self.masternode_statuses = {}
 
         self.load()
 
@@ -77,9 +79,23 @@ class MasternodeManager(object):
         self.proposals = [BudgetProposal.from_dict(d) for d in proposals.values()]
         self.budget_votes = [BudgetVote.from_dict(d) for d in self.wallet.storage.get('budget_votes', [])]
 
-    def subscribe_to_proposals(self):
+    def send_subscriptions(self):
         if not self.wallet.network:
             return
+        self.subscribe_to_masternodes()
+        self.subscribe_to_proposals()
+
+    def subscribe_to_masternodes(self):
+        for mn in self.masternodes:
+            if not mn.announced:
+                continue
+            collateral = mn.get_collateral_str()
+            if self.masternode_statuses.get(collateral) is None:
+                req = ('masternode.subscribe', [collateral])
+                self.wallet.network.send([req], self.masternode_subscription_response)
+                self.masternode_statuses[collateral] = ''
+
+    def subscribe_to_proposals(self):
         req = ('masternode.proposals.subscribe', [])
         self.wallet.network.send([req], self.proposals_subscription_response)
 
@@ -235,6 +251,7 @@ class MasternodeManager(object):
         self.network_event.clear()
         self.wallet.network.send([('masternode.announce.broadcast', [serialized])], callback)
         self.network_event.wait()
+        self.subscribe_to_masternodes()
         if errmsg:
             errmsg = errmsg[0]
         return (errmsg, mn.announced)
@@ -515,7 +532,7 @@ class MasternodeManager(object):
     def proposals_subscription_response(self, response):
         """Callback for when proposals on the network change."""
         proposals = []
-        r = response['result'] if not response['params'] else response['params'][0]
+        r = response['result']
 
         for k, result in r.items():
             kwargs = {'proposal_name': result['Name'], 'proposal_url': result['URL'],
@@ -525,6 +542,24 @@ class MasternodeManager(object):
                     'yes_count': result['YesCount'], 'no_count': result['NoCount']}
             proposals.append(BudgetProposal(**kwargs))
 
-        print_error('Received updated budget proposal information')
+        print_error('Received updated budget proposal information (%d proposals)' % len(proposals))
         self.all_proposals = proposals
         self.wallet.network.trigger_callback('proposals')
+
+    def masternode_subscription_response(self, response):
+        """Callback for when a masternode's status changes."""
+        collateral = response['params'][0]
+        mn = None
+        for masternode in self.masternodes:
+            if masternode.get_collateral_str() == collateral:
+                mn = masternode
+                break
+
+        if not mn:
+            return
+
+        status = response['result']
+        if status is None:
+            status = False
+        print_error('Received updated status for masternode %s: "%s"' % (mn.alias, status))
+        self.masternode_statuses[collateral] = status
