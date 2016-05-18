@@ -19,7 +19,7 @@ import util
 class MasternodesModel(QAbstractTableModel):
     """Model for masternodes."""
     ALIAS = 0
-    ANNOUNCED = 1
+    STATUS = 1
     VIN = 2
     COLLATERAL = 3
     DELEGATE = 4
@@ -35,7 +35,7 @@ class MasternodesModel(QAbstractTableModel):
 
         headers = [
             {Qt.DisplayRole: 'Alias',},
-            {Qt.DisplayRole: 'Activated',},
+            {Qt.DisplayRole: 'Status',},
             {Qt.DisplayRole: 'Collateral',},
             {Qt.DisplayRole: 'Collateral Key',},
             {Qt.DisplayRole: 'Delegate Key',},
@@ -88,24 +88,22 @@ class MasternodesModel(QAbstractTableModel):
         data = None
         if not index.isValid():
             return QVariant(data)
-        if role not in [Qt.DisplayRole, Qt.EditRole, Qt.CheckStateRole, Qt.ToolTipRole, Qt.FontRole]:
+        if role not in [Qt.DisplayRole, Qt.EditRole, Qt.ToolTipRole, Qt.FontRole]:
             return None
 
         mn = self.masternodes[index.row()]
         i = index.column()
 
-        # Only the Activated column has a checkbox.
-        if role == Qt.CheckStateRole and i != self.ANNOUNCED:
-            return None
-
         if i == self.ALIAS:
             data = mn.alias
-        elif i == self.ANNOUNCED:
-            data = mn.announced
-            if role == Qt.CheckStateRole:
-                data = Qt.Checked if data else Qt.Unchecked
-            elif role == Qt.DisplayRole:
-                data = _('Yes') if data else _('No')
+        elif i == self.STATUS:
+            status = self.manager.masternode_statuses.get(mn.get_collateral_str())
+            data = masternode_status(status)
+            # Return the long description for data widget mappers.
+            if role == Qt.EditRole:
+                data = data[1]
+            else:
+                data = data[0]
         elif i == self.VIN:
             txid = mn.vin.get('prevout_hash', '')
             out_n = str(mn.vin.get('prevout_n', ''))
@@ -150,8 +148,8 @@ class MasternodesModel(QAbstractTableModel):
 
         if i == self.ALIAS:
             mn.alias = str(value.toString())
-        elif i == self.ANNOUNCED:
-            mn.announced = value.toBool()
+        elif i == self.STATUS:
+            return True
         elif i == self.VIN:
             s = str(value.toString()).split(':')
             mn.vin['prevout_hash'] = s[0]
@@ -293,6 +291,7 @@ class MasternodeDialog(QDialog):
         mapper.setSubmitPolicy(QDataWidgetMapper.ManualSubmit)
         mapper.setModel(model)
         mapper.addMapping(editor.alias_edit, MasternodesModel.ALIAS)
+        mapper.addMapping(editor.status_edit, MasternodesModel.STATUS)
 
         editor.vin_edit.setReadOnly(True)
         mapper.addMapping(editor.vin_edit, MasternodesModel.VIN, 'string')
@@ -300,8 +299,6 @@ class MasternodeDialog(QDialog):
         mapper.addMapping(editor.addr_edit, MasternodesModel.ADDR, 'string')
         mapper.addMapping(editor.delegate_key_edit, MasternodesModel.DELEGATE)
         mapper.addMapping(editor.protocol_version_edit, MasternodesModel.PROTOCOL_VERSION)
-
-        mapper.addMapping(editor.announced_checkbox, MasternodesModel.ANNOUNCED)
 
         self.save_new_masternode_button = QPushButton('Save As New Masternode')
         self.save_new_masternode_button.clicked.connect(lambda: self.save_current_masternode(as_new=True))

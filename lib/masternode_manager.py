@@ -185,6 +185,32 @@ class MasternodeManager(object):
             return t[0]
         raise Exception('Delegate key not known: %s' % address)
 
+    def check_can_sign_masternode(self, alias):
+        """Raise an exception if alias can't be signed and announced to the network."""
+        mn = self.get_masternode(alias)
+        if not mn:
+            raise Exception('Nonexistent masternode')
+        if not mn.collateral_key:
+            raise Exception('Collateral key is not specified')
+        if not mn.delegate_key:
+            raise Exception('Masternode delegate key is not specified')
+        if not mn.addr.ip:
+            raise Exception('Masternode has no IP address')
+
+        # Ensure that the collateral payment has >= MASTERNODE_MIN_CONFIRMATIONS.
+        confirmations, _ = self.wallet.get_confirmations(mn.vin['prevout_hash'])
+        if confirmations < MASTERNODE_MIN_CONFIRMATIONS:
+            raise Exception('Collateral payment must have at least %d confirmations (current: %d)' % (MASTERNODE_MIN_CONFIRMATIONS, confirmations))
+        # Ensure that the masternode's vin is valid.
+        if mn.vin.get('value', 0) != bitcoin.COIN * 1000:
+            raise Exception('Masternode requires a collateral 1000 DASH output.')
+
+        # If the masternode has been announced, it can be announced again if it has been disabled.
+        if mn.announced:
+            status = self.masternode_statuses.get(mn.get_collateral_str())
+            if status in ['PRE_ENABLED', 'ENABLED']:
+                raise Exception('Masternode has already been activated')
+
     def save(self):
         """Save masternodes."""
         masternodes = {}
@@ -199,21 +225,8 @@ class MasternodeManager(object):
 
     def sign_announce(self, alias, password):
         """Sign a Masternode Announce message for alias."""
+        self.check_can_sign_masternode(alias)
         mn = self.get_masternode(alias)
-        if not mn:
-            raise Exception('Nonexistent masternode')
-        if mn.announced:
-            raise Exception('Masternode has already been activated')
-        if not mn.collateral_key:
-            raise Exception('Collateral key is not specified')
-        if not mn.delegate_key:
-            raise Exception('Masternode delegate key is not specified')
-        if not mn.addr.ip:
-            raise Exception('Masternode has no IP address')
-        # Ensure that the collateral payment has >= MASTERNODE_MIN_CONFIRMATIONS.
-        confirmations, _ = self.wallet.get_confirmations(mn.vin['prevout_hash'])
-        if confirmations < MASTERNODE_MIN_CONFIRMATIONS:
-            raise Exception('Collateral payment must have at least %d confirmations (current: %d)' % (MASTERNODE_MIN_CONFIRMATIONS, confirmations))
         # Ensure that the masternode's vin is valid.
         if mn.vin.get('scriptSig') is None:
             mn.vin['scriptSig'] = ''
