@@ -143,7 +143,8 @@ class BudgetVote(object):
 
         s = self.get_vin_short()
         s += self.proposal_hash
-        s += self.vote
+        vote = '1' if self.vote.upper() == 'YES' else '0'
+        s += vote
 
         s += str(self.timestamp)
         return s
