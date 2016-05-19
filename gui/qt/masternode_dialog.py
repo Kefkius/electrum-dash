@@ -536,6 +536,11 @@ class MasternodeDialog(QDialog):
         mn = self.selected_masternode()
         if not mn.announced:
             return QMessageBox.critical(self, _('Cannot Vote'), _('Masternode has not been activated.'))
+        # Check that we can vote before asking for a password.
+        try:
+            self.manager.check_can_vote(mn.alias, proposal_name)
+        except Exception as e:
+            return QMessageBox.critical(self, _('Cannot Vote'), _(str(e)))
 
         pw = None
         if self.manager.wallet.use_encryption:

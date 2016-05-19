@@ -6,7 +6,7 @@ from PyQt4.QtCore import *
 from electrum_dash.i18n import _
 from electrum_dash.masternode_budget import BudgetProposal, BudgetVote
 from electrum_dash.masternode_manager import BUDGET_FEE_CONFIRMATIONS
-from electrum_dash.util import block_explorer_URL, print_error
+from electrum_dash.util import block_explorer_URL, print_error, format_satoshis_plain
 
 from amountedit import BTCAmountEdit
 import util
@@ -102,6 +102,8 @@ class ProposalsModel(QAbstractTableModel):
                 data = util.MONOSPACE_FONT
         elif c == self.AMOUNT:
             data = p.payment_amount
+            if role in [Qt.DisplayRole, Qt.EditRole]:
+                data = format_satoshis_plain(data)
         elif c == self.ADDRESS:
             data = p.address
             if role == Qt.FontRole:
