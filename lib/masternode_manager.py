@@ -1,6 +1,7 @@
 from collections import namedtuple, OrderedDict
 import base64
 import threading
+from decimal import Decimal
 
 import bitcoin
 from blockchain import Blockchain
@@ -346,24 +347,39 @@ class MasternodeManager(object):
             raise Exception('Nonexistent masternode')
         return filter(lambda v: v.vin == mn.vin, self.budget_votes)
 
-    def vote(self, alias, proposal_name, vote_choice, password):
-        """Vote on a budget proposal."""
+    def check_can_vote(self, alias, proposal_name):
+        """Raise an exception if alias can't vote for proposal name."""
         if not self.wallet.network:
             raise Exception('Not connected')
+        # Get the proposal that proposal_name identifies.
+        proposal = None
+        for p in self.all_proposals:
+            if p.proposal_name == proposal_name:
+                proposal = p
+                break
+        else:
+            raise Exception('Unknown proposal')
+
+        # Make sure the masternode hasn't already voted.
+        proposal_hash = proposal.get_hash()
+        previous_votes = self.get_votes(alias)
+        if any(v.proposal_hash == proposal_hash for v in previous_votes):
+            raise Exception('Masternode has already voted on this proposal')
+
+        mn = self.get_masternode(alias)
+        if not mn.announced:
+            raise Exception('Masternode has not been activated')
+        else:
+            status = self.masternode_statuses.get(mn.get_collateral_str())
+            if status not in ['PRE_ENABLED', 'ENABLED']:
+                raise Exception('Masternode is not currently enabled')
+
+    def vote(self, alias, proposal_name, vote_choice, password):
+        """Vote on a budget proposal."""
+        self.check_can_vote(alias, proposal_name)
         # Validate vote choice.
         if vote_choice.upper() not in ('YES', 'NO'):
             raise ValueError('Invalid vote choice: "%s"' % vote_choice)
-
-        # Retrieve the proposal hash from the network if we don't have it.
-        proposal = self.get_proposal(proposal_name)
-        if not proposal:
-            proposal_hash = self.retrieve_proposal_hash(proposal_name)
-        else:
-            proposal_hash = proposal.get_hash()
-        # Make sure we haven't already voted.
-        votes = self.get_votes(alias)
-        if any(v.proposal_hash == proposal_hash for v in votes):
-            raise Exception('Alias "%s" has already voted for proposal "%s"' % (alias, proposal_name))
 
         # Create the vote.
         mn = self.get_masternode(alias)
@@ -519,7 +535,7 @@ class MasternodeManager(object):
                 'start_block': int(result['BlockStart']), 'end_block': int(result['BlockEnd']),
                 'payment_amount': int(result['MonthlyPayment']), 'address': result['PaymentAddress'],
                 'fee_txid': result['FeeTXHash']}
-        return BudgetProposal(**kwargs)
+        return BudgetProposal.from_dict(kwargs)
 
     def retrieve_proposals(self):
         """Retrieve proposals from the network."""
@@ -532,7 +548,7 @@ class MasternodeManager(object):
                             'start_block': int(result['BlockStart']), 'end_block': int(result['BlockEnd']),
                             'payment_amount': int(result['MonthlyPayment']), 'address': result['PaymentAddress'],
                             'fee_txid': result['FeeTXHash']}
-                    proposals.append(BudgetProposal(**kwargs))
+                    proposals.append(BudgetProposal.from_dict(kwargs))
             finally:
                 self.network_event.set()
 
@@ -550,10 +566,12 @@ class MasternodeManager(object):
         for k, result in r.items():
             kwargs = {'proposal_name': result['Name'], 'proposal_url': result['URL'],
                     'start_block': int(result['BlockStart']), 'end_block': int(result['BlockEnd']),
-                    'payment_amount': int(result['MonthlyPayment']), 'address': result['PaymentAddress'],
+                    'payment_amount': result['MonthlyPayment'], 'address': result['PaymentAddress'],
                     'fee_txid': result['FeeTXHash'],
                     'yes_count': result['YesCount'], 'no_count': result['NoCount']}
-            proposals.append(BudgetProposal(**kwargs))
+            payment_amount = Decimal(str(kwargs['payment_amount']))
+            kwargs['payment_amount'] = pow(10, 8) * payment_amount
+            proposals.append(BudgetProposal.from_dict(kwargs))
 
         print_error('Received updated budget proposal information (%d proposals)' % len(proposals))
         self.all_proposals = proposals
