@@ -15,6 +15,8 @@ from masternode_widgets import *
 from masternode_budget_widgets import *
 import util
 
+# Background color for enabled masternodes.
+ENABLED_MASTERNODE_BG = '#80ff80'
 
 class MasternodesModel(QAbstractTableModel):
     """Model for masternodes."""
@@ -88,7 +90,7 @@ class MasternodesModel(QAbstractTableModel):
         data = None
         if not index.isValid():
             return QVariant(data)
-        if role not in [Qt.DisplayRole, Qt.EditRole, Qt.ToolTipRole, Qt.FontRole]:
+        if role not in [Qt.DisplayRole, Qt.EditRole, Qt.ToolTipRole, Qt.FontRole, Qt.BackgroundRole]:
             return None
 
         mn = self.masternodes[index.row()]
@@ -99,11 +101,13 @@ class MasternodesModel(QAbstractTableModel):
         elif i == self.STATUS:
             status = self.manager.masternode_statuses.get(mn.get_collateral_str())
             data = masternode_status(status)
+            if role == Qt.BackgroundRole:
+                data = QBrush(QColor(ENABLED_MASTERNODE_BG)) if data[0] else None
             # Return the long description for data widget mappers.
-            if role == Qt.EditRole:
-                data = data[1]
+            elif role == Qt.EditRole:
+                data = data[2]
             else:
-                data = data[0]
+                data = data[1]
         elif i == self.VIN:
             txid = mn.vin.get('prevout_hash', '')
             out_n = str(mn.vin.get('prevout_n', ''))

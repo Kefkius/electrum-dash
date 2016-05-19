@@ -13,21 +13,20 @@ import util
 def masternode_status(status):
     """Get a human-friendly representation of status.
 
-    Returns a 2-tuple of (one_word_description, description).
+    Returns a 3-tuple of (enabled, one_word_description, description).
     """
     statuses = {
-        'PRE_ENABLED': (_('Enabling'), _('Waiting for masternode to enable itself.')),
-        'ENABLED': (_('Enabled'), _('Masternode is enabled.')),
-        'EXPIRED': (_('Disabled'), _('Masternode failed to ping the network and was disabled.')),
-        'VIN_SPENT': (_('Disabled'), _('Collateral payment has been spent.')),
-        'REMOVE': (_('Disabled'), _('Masternode failed to ping the network and was disabled.')),
+        'PRE_ENABLED': (True, _('Enabling'), _('Waiting for masternode to enable itself.')),
+        'ENABLED': (True, _('Enabled'), _('Masternode is enabled.')),
+        'EXPIRED': (False, _('Disabled'), _('Masternode failed to ping the network and was disabled.')),
+        'VIN_SPENT': (False, _('Disabled'), _('Collateral payment has been spent.')),
+        'REMOVE': (False, _('Disabled'), _('Masternode failed to ping the network and was disabled.')),
     }
     if statuses.get(status):
         return statuses[status]
     elif status is False:
-        return (_('N/A'), _('Masternode has not been seen on the network.'))
-    else:
-        return (_('Unknown'), _('Unknown masternode status.'))
+        return (False, _('N/A'), _('Masternode has not been seen on the network.'))
+    return (False, _('Unknown'), _('Unknown masternode status.'))
 
 class NetworkAddressWidget(QWidget):
     """Widget that represents a network address."""
