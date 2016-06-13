@@ -101,7 +101,7 @@ class BudgetProposal(object):
         if not bitcoin.is_address(self.address):
             raise ValueError(_('Invalid address:') + ' %s' % self.address)
         addrtype, h160 = bitcoin.bc_address_to_hash_160(self.address)
-        if addrtype != bitcoin.PUBKEY_ADDR:
+        if addrtype != bitcoin.pubkey_addr():
             raise ValueError(_('Only P2PKH addresses are currently supported.'))
 
         if self.payment_amount < bitcoin.COIN:

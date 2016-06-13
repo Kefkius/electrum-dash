@@ -37,14 +37,34 @@ import aes
 
 import x11_hash
 
+testnet = False
+
+def set_testnet(is_testnet):
+    """Set whether testnet is enabled."""
+    global testnet
+    testnet = is_testnet
+
+def is_testnet():
+    """Get whether testnet is enabled."""
+    return testnet
+
+def pubkey_addr():
+    """Get the P2PKH address version."""
+    return 140 if is_testnet() else 76
+
+def script_addr():
+    """Get the P2SH address version."""
+    return 19 if is_testnet() else 16
+
+def wif():
+    """Get the WIF address version."""
+    return 239 if is_testnet() else 204
+
 # NOTE: This switch represents more of a hack than an option.
 # If you change its value, be sure to delete your 'recent_servers' file.
 # You may also need to remove the 'server' option from your config file.
 # Otherwise, you may end up getting headers for the wrong chain!
 TESTNET = False
-PUBKEY_ADDR = 140 if TESTNET else 76
-SCRIPT_ADDR = 19 if TESTNET else 16
-WIF = 239 if TESTNET else 204
 
 ################################## transactions
 
@@ -226,11 +246,13 @@ def hash_160(public_key):
     md.update(sha256(public_key))
     return md.digest()
 
-def public_key_to_bc_address(public_key, addrtype = PUBKEY_ADDR):
+def public_key_to_bc_address(public_key, addrtype = None):
     h160 = hash_160(public_key)
     return hash_160_to_bc_address(h160, addrtype)
 
-def hash_160_to_bc_address(h160, addrtype = PUBKEY_ADDR):
+def hash_160_to_bc_address(h160, addrtype = None):
+    if addrtype is None:
+        addrtype = pubkey_addr()
     vh160 = chr(addrtype) + h160
     h = Hash(vh160)
     addr = vh160 + h[0:4]
@@ -319,13 +341,13 @@ def PrivKeyToSecret(privkey):
 
 
 def SecretToASecret(secret, compressed=False):
-    vchIn = chr(WIF) + secret
+    vchIn = chr(wif()) + secret
     if compressed: vchIn += '\01'
     return EncodeBase58Check(vchIn)
 
 def ASecretToSecret(key):
     vch = DecodeBase58Check(key)
-    if vch and vch[0] == chr(WIF):
+    if vch and vch[0] == chr(wif()):
         return vch[1:]
     elif is_minikey(key):
         return minikey_to_private_key(key)
@@ -380,7 +402,7 @@ def is_address(addr):
         addrtype, h = bc_address_to_hash_160(addr)
     except Exception:
         return False
-    if addrtype not in [PUBKEY_ADDR, SCRIPT_ADDR]:
+    if addrtype not in [pubkey_addr(), script_addr()]:
         return False
     return addr == hash_160_to_bc_address(h, addrtype)
 
