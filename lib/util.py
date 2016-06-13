@@ -202,9 +202,9 @@ def profiler(func):
     return lambda *args, **kw_args: do_profile(func, args, kw_args)
 
 def headers_file_name():
-    from bitcoin import TESTNET
+    from bitcoin import is_testnet
     s = 'blockchain_headers'
-    if TESTNET:
+    if is_testnet():
         s += '_testnet'
     return s
 

@@ -52,7 +52,8 @@ MAINNET_SERVERS = {
     'electrum.dash.siampm.com':DEFAULT_PORTS,  # thelazier
     'electrum-drk.club':DEFAULT_PORTS,         # duffman
 }
-DEFAULT_SERVERS = TESTNET_SERVERS if TESTNET else MAINNET_SERVERS
+def default_servers():
+    return TESTNET_SERVERS if is_testnet() else MAINNET_SERVERS
 
 NODES_RETRY_INTERVAL = 60
 SERVER_RETRY_INTERVAL = 10
@@ -90,9 +91,11 @@ def parse_servers(result):
 
     return servers
 
-def filter_protocol(hostmap = DEFAULT_SERVERS, protocol = 's'):
+def filter_protocol(hostmap = None, protocol = 's'):
     '''Filters the hostmap for those implementing protocol.
     The result is a list in serialized form.'''
+    if hostmap is None:
+        hostmap = default_servers()
     eligible = []
     for host, portmap in hostmap.items():
         port = portmap.get(protocol)
@@ -100,7 +103,9 @@ def filter_protocol(hostmap = DEFAULT_SERVERS, protocol = 's'):
             eligible.append(serialize_server(host, port, protocol))
     return eligible
 
-def pick_random_server(hostmap = DEFAULT_SERVERS, protocol = 's', exclude_set = set()):
+def pick_random_server(hostmap = None, protocol = 's', exclude_set = set()):
+    if hostmap is None:
+        hostmap = default_servers()
     eligible = list(set(filter_protocol(hostmap, protocol)) - exclude_set)
     return random.choice(eligible) if eligible else None
 
@@ -353,7 +358,7 @@ class Network(util.DaemonThread):
         if self.irc_servers:
             out = self.irc_servers
         else:
-            out = DEFAULT_SERVERS
+            out = default_servers()
             for s in self.recent_servers:
                 try:
                     host, port, protocol = deserialize_server(s)

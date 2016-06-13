@@ -6,8 +6,9 @@ from transaction import BCDataStream, Transaction
 import util
 from i18n import _
 
-BUDGET_PAYMENTS_CYCLE_BLOCKS = 50 if bitcoin.TESTNET else 16616
 SUBSIDY_HALVING_INTERVAL = 210240
+def budget_payments_cycle_blocks():
+    return 50 if bitcoin.is_testnet() else 16616
 
 safe_characters = string.ascii_letters + " .,;-_/:?@()"
 def is_safe(s):
@@ -71,12 +72,12 @@ class BudgetProposal(object):
 
     def get_payments_count(self):
         """Get the number of payments that this proposal entails."""
-        return (self.end_block - self.start_block) / BUDGET_PAYMENTS_CYCLE_BLOCKS
+        return (self.end_block - self.start_block) / budget_payments_cycle_blocks()
 
     def set_payments_count(self, count):
         """Set end_block according to a number of payments."""
-        payments_start = self.start_block - self.start_block % BUDGET_PAYMENTS_CYCLE_BLOCKS
-        self.end_block = payments_start + BUDGET_PAYMENTS_CYCLE_BLOCKS * count
+        payments_start = self.start_block - self.start_block % budget_payments_cycle_blocks()
+        self.end_block = payments_start + budget_payments_cycle_blocks() * count
         return True
 
     def check_valid(self):
@@ -109,7 +110,7 @@ class BudgetProposal(object):
 
         # Calculate max budget.
         subsidy = 5 * bitcoin.COIN
-        if bitcoin.TESTNET:
+        if bitcoin.is_testnet():
             for i in range(46200, self.start_block + 1, SUBSIDY_HALVING_INTERVAL):
                 subsidy -= subsidy/14
         else:
@@ -117,7 +118,7 @@ class BudgetProposal(object):
                 subsidy -= subsidy/14
 
         # 10%
-        total_budget = ((subsidy/100)*10) * BUDGET_PAYMENTS_CYCLE_BLOCKS
+        total_budget = ((subsidy/100)*10) * budget_payments_cycle_blocks()
         if self.payment_amount > total_budget:
             raise ValueError(_('Payment is more than max') + ' (%s).' % util.format_satoshis_plain(total_budget))
 
