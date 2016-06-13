@@ -59,6 +59,12 @@ NODES_RETRY_INTERVAL = 60
 SERVER_RETRY_INTERVAL = 10
 MIN_SERVER_VERSION = 1.0
 
+def recent_servers_file():
+    """Get the name of the recent servers file."""
+    s = 'recent_servers'
+    if is_testnet():
+        s += '_testnet'
+    return s
 
 def parse_servers(result):
     """ parse servers list into dict format"""
@@ -244,7 +250,7 @@ class Network(util.DaemonThread):
     def read_recent_servers(self):
         if not self.config.path:
             return []
-        path = os.path.join(self.config.path, "recent_servers")
+        path = os.path.join(self.config.path, recent_servers_file())
         try:
             with open(path, "r") as f:
                 data = f.read()
@@ -255,7 +261,7 @@ class Network(util.DaemonThread):
     def save_recent_servers(self):
         if not self.config.path:
             return
-        path = os.path.join(self.config.path, "recent_servers")
+        path = os.path.join(self.config.path, recent_servers_file())
         s = json.dumps(self.recent_servers, indent=4, sort_keys=True)
         try:
             with open(path, "w") as f:
