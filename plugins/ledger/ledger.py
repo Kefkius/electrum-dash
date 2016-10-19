@@ -4,7 +4,7 @@ import hashlib
 import time
 
 import electrum_dash
-from electrum_dash.bitcoin import EncodeBase58Check, DecodeBase58Check, bc_address_to_hash_160, hash_160_to_bc_address, TYPE_ADDRESS, PUBKEY_ADDR, SCRIPT_ADDR
+from electrum_dash.bitcoin import EncodeBase58Check, DecodeBase58Check, bc_address_to_hash_160, hash_160_to_bc_address, TYPE_ADDRESS, pubkey_addr, script_addr
 from electrum_dash.i18n import _
 from electrum_dash.plugins import BasePlugin, hook
 from ..hw_wallet import BIP44_HW_Wallet
@@ -193,7 +193,7 @@ class BTChipWallet(BIP44_HW_Wallet):
                 output = address
                 if not self.canAlternateCoinVersions:
                     v, h = bc_address_to_hash_160(address)
-                    if v == PUBKEY_ADDR:
+                    if v == pubkey_addr():
                         output = hash_160_to_bc_address(h, 0)
                 outputAmount = amount
 
@@ -378,7 +378,7 @@ class LedgerPlugin(HW_PluginBase):
                     pin = pin.encode()
                     client.verifyPin(pin)
                     if wallet.canAlternateCoinVersions:
-                        client.setAlternateCoinVersions(PUBKEY_ADDR, SCRIPT_ADDR)
+                        client.setAlternateCoinVersions(pubkey_addr(), script_addr())
 
             except BTChipException, e:
                 try:

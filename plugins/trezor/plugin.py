@@ -8,7 +8,7 @@ from functools import partial
 from electrum_dash.account import BIP32_Account
 from electrum_dash.bitcoin import (bc_address_to_hash_160, xpub_from_pubkey,
                               public_key_to_bc_address, EncodeBase58Check,
-                              TYPE_ADDRESS, PUBKEY_ADDR, SCRIPT_ADDR)
+                              TYPE_ADDRESS, pubkey_addr, script_addr)
 from electrum_dash.i18n import _
 from electrum_dash.plugins import BasePlugin, hook
 from electrum_dash.transaction import (deserialize, is_extended_pubkey,
@@ -307,9 +307,9 @@ class TrezorCompatiblePlugin(HW_PluginBase):
                 txoutputtype.address = address
             txoutputtype.amount = amount
             addrtype, hash_160 = bc_address_to_hash_160(address)
-            if addrtype == PUBKEY_ADDR:
+            if addrtype == pubkey_addr():
                 txoutputtype.script_type = self.types.PAYTOADDRESS
-            elif addrtype == SCRIPT_ADDR:
+            elif addrtype == script_addr():
                 txoutputtype.script_type = self.types.PAYTOSCRIPTHASH
             else:
                 raise BaseException('addrtype')
