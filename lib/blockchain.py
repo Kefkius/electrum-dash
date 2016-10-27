@@ -21,13 +21,6 @@ import os
 import util
 from bitcoin import *
 
-def headers_file():
-    """Get the name of the blockchain headers file."""
-    s = 'blockchain_headers'
-    if is_testnet():
-        s += '_testnet'
-    return s
-
 target_timespan = 24 * 60 * 60 # Dash: 1 day
 target_spacing = 2.5 * 60 # Dash: 2.5 minutes
 interval = target_timespan / target_spacing # 576
@@ -178,7 +171,7 @@ class Blockchain():
         return rev_hex(PoWHash(cls.header_to_string(header).decode('hex')).encode('hex'))
 
     def path(self):
-        return os.path.join(self.config.path, headers_file())
+        return os.path.join(self.config.path, 'blockchain_headers')
 
     def init_headers_file(self):
         filename = self.path()

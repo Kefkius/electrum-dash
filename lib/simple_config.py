@@ -4,6 +4,7 @@ import threading
 import os
 
 from copy import deepcopy
+from electrum_dash.bitcoin import is_testnet
 from electrum_dash.util import user_dir, print_error, print_msg, print_stderr, PrintError
 
 SYSTEM_CONFIG_PATH = "/etc/electrum-dash.conf"
@@ -75,10 +76,12 @@ class SimpleConfig(PrintError):
         path = self.get('electrum_path')
         if path is None:
             path = self.user_dir()
+            if is_testnet():
+                path = os.path.join(path, 'testnet')
 
         # Make directory if it does not yet exist.
         if not os.path.exists(path):
-            os.mkdir(path)
+            os.makedirs(path)
 
         print_error("electrum directory", path)
         return path
