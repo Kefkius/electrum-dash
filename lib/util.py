@@ -352,18 +352,24 @@ def time_difference(distance_in_time, include_seconds):
     else:
         return "over %d years" % (round(distance_in_minutes / 525600))
 
-block_explorer_info = {
+mainnet_block_explorer_info = {
     'Dash.org': ('http://explorer.dash.org',
                         {'tx': 'tx', 'addr': 'address'}),
-    'Bchain.info': ('https://bchain.info/DASH',
-                        {'tx': 'tx', 'addr': 'addr'}),
 }
+testnet_block_explorer_info = {
+    'Dash.org': ('http://test.explorer.dash.org',
+                        {'tx': 'tx', 'addr': 'address'}),
+}
+
+def block_explorer_info():
+    from bitcoin import is_testnet
+    return testnet_block_explorer_info if is_testnet() else mainnet_block_explorer_info
 
 def block_explorer(config):
     return config.get('block_explorer', 'Dash.org')
 
 def block_explorer_tuple(config):
-    return block_explorer_info.get(block_explorer(config))
+    return block_explorer_info().get(block_explorer(config))
 
 def block_explorer_URL(config, kind, item):
     be_tuple = block_explorer_tuple(config)
