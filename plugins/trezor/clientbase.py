@@ -1,5 +1,6 @@
 import time
 
+from electrum_dash.bitcoin import is_testnet
 from electrum_dash.i18n import _
 from electrum_dash.util import PrintError, UserCancelled
 from electrum_dash.wallet import BIP44_Wallet
@@ -142,11 +143,14 @@ class TrezorClientBase(GuiMixin, PrintError):
         '''Provided here as in keepkeylib but not trezorlib.'''
         self.transport.write(self.proto.Cancel())
 
+    def coin_name(self):
+        return 'tDash' if is_testnet() else 'Dash'
+
     def first_address(self, derivation):
         return self.address_from_derivation(derivation)
 
     def address_from_derivation(self, derivation):
-        return self.get_address('Dash', self.expand_path(derivation))
+        return self.get_address(self.coin_name(), self.expand_path(derivation))
 
     def toggle_passphrase(self):
         if self.features.passphrase_protection:
