@@ -12,11 +12,13 @@ from electrum_dash.util import format_satoshis_plain
 
 BUDGET_FEE_CONFIRMATIONS = 6
 BUDGET_FEE_TX = 5 * bitcoin.COIN
-# From masternode.h
-MASTERNODE_MIN_CONFIRMATIONS = 15
 
 MasternodeConfLine = namedtuple('MasternodeConfLine', ('alias', 'addr',
         'wif', 'txid', 'output_index'))
+
+def masternode_min_confirmations():
+    """Get the minimum number of confirmations for a collateral tx."""
+    return 1 if bitcoin.is_testnet() else 15
 
 def parse_masternode_conf(lines):
     """Construct MasternodeConfLine instances from lines of a masternode.conf file."""
@@ -208,8 +210,8 @@ class MasternodeManager(object):
 
         # Ensure that the collateral payment has >= MASTERNODE_MIN_CONFIRMATIONS.
         confirmations, _ = self.wallet.get_confirmations(mn.vin['prevout_hash'])
-        if confirmations < MASTERNODE_MIN_CONFIRMATIONS:
-            raise Exception('Collateral payment must have at least %d confirmations (current: %d)' % (MASTERNODE_MIN_CONFIRMATIONS, confirmations))
+        if confirmations < masternode_min_confirmations():
+            raise Exception('Collateral payment must have at least %d confirmations (current: %d)' % (masternode_min_confirmations(), confirmations))
         # Ensure that the masternode's vin is valid.
         if mn.vin.get('value', 0) != bitcoin.COIN * 1000:
             raise Exception('Masternode requires a collateral 1000 DASH output.')
