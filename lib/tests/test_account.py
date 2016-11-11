@@ -2,8 +2,19 @@ import unittest
 
 from lib import account
 from lib import wallet
+from lib.bitcoin import _set_tnet as set_testnet
 
 class Test_Account(unittest.TestCase):
+    account_first_private_key = 'XCy6hXPQW56dziArYgZJuGxkHPzsF2Hx3Y8VUckoFoKXLJ1jHjDA'
+    account_first_address = 'Xpa9ex1PnN5edGMiTSDJ4YM4kiP9UW49PD'
+
+    old_account_private_key = '7sSSXZD5x6Cu45BX14XaNSEzMkZ9eVU8cSGwrTNgAZBwQuUcnx1'
+    old_account_addresses = (
+        (0, 0, 'XpyiHqXbBtgxYMXms6FibK1GoLXNyNqyet'),
+        (0, 2, 'XrViwCFdv7HjBTGXCVyZCVTqQoEaNBrQsb'),
+        (1, 0, 'Xg7pZcsGCfA6urhMniD9oyqdChfZnsGNYH'),
+        (1, 3, 'Xvnb7nStjRgy2k8uRaJc52WfH6wJdamHk4'),
+    )
 
     def test_bip32_account(self):
         v = {
@@ -43,7 +54,7 @@ class Test_Account(unittest.TestCase):
         self.assertEquals(a.dump(), v)
         self.assertEquals(a.get_master_pubkeys(), [v['xpub']])
         self.assertEquals(a.first_address(),
-                          ('Xpa9ex1PnN5edGMiTSDJ4YM4kiP9UW49PD', v['receiving'][0]))
+                          (self.account_first_address, v['receiving'][0]))
 
         xprv = 'xprv9s21ZrQH143K2eGb6FZ81nLW44cyy7mrAiqg4VB4pQKDrmizjc1pSuynnpeiaMPdZxvrfvdBi5oqFi9hmsV7MrsVquKkruQ7TJPCfVuPSdw'
         storage = dict(
@@ -53,7 +64,7 @@ class Test_Account(unittest.TestCase):
         )
         w = wallet.BIP32_Wallet(storage)
         self.assertEquals(a.get_private_key(sequence=[0, 0], wallet=w, password=None),
-                          ['XCy6hXPQW56dziArYgZJuGxkHPzsF2Hx3Y8VUckoFoKXLJ1jHjDA'])
+                          [self.account_first_private_key])
 
         for for_change in [0, 1]:
             for n in range(6):
@@ -94,10 +105,8 @@ class Test_Account(unittest.TestCase):
 
         a = account.OldAccount(v)
         self.assertEquals(a.get_master_pubkeys(), [v['mpk']])
-        self.assertEquals(a.get_address(for_change=0, n=0), 'XpyiHqXbBtgxYMXms6FibK1GoLXNyNqyet')
-        self.assertEquals(a.get_address(for_change=0, n=2), 'XrViwCFdv7HjBTGXCVyZCVTqQoEaNBrQsb')
-        self.assertEquals(a.get_address(for_change=1, n=0), 'Xg7pZcsGCfA6urhMniD9oyqdChfZnsGNYH')
-        self.assertEquals(a.get_address(for_change=1, n=3), 'Xvnb7nStjRgy2k8uRaJc52WfH6wJdamHk4')
+        for for_change, index, addr in self.old_account_addresses:
+            self.assertEquals(a.get_address(for_change=for_change, n=index), addr)
 
         self.assertTrue(a.check_seed(seed))
         with self.assertRaises(account.InvalidPassword):
@@ -109,7 +118,7 @@ class Test_Account(unittest.TestCase):
         }
         w = wallet.OldWallet(storage)
         privkey = a.get_private_key(sequence=[0, 0], wallet=w, password=None)
-        self.assertEquals(privkey, ['7sSSXZD5x6Cu45BX14XaNSEzMkZ9eVU8cSGwrTNgAZBwQuUcnx1'])
+        self.assertEquals(privkey, [self.old_account_private_key])
 
         for for_change in [0, 1]:
             for n in range(5):
@@ -121,3 +130,23 @@ class Test_Account(unittest.TestCase):
                 mpk, seq = a.parse_xpubkey(pubkey)
                 self.assertEquals(mpk, v['mpk'])
                 self.assertEquals(seq, [for_change, n])
+
+class Test_Account_testnet(Test_Account):
+    account_first_private_key = 'cPGAiAztdTAT6pdjuLNZmNGnzc2hTfnPjzw44Wt7SYhSBt3BFxVt'
+    account_first_address = 'yaCkfu5qDujiy1HG2HXh6ZmR2zsX1o76X3'
+
+    old_account_private_key = '93UVhfvCmyspmnXCjMFYkfE6Qk7HQ8xn9okiPhT3xVRWgeacDgU'
+    old_account_addresses = (
+        (0, 0, 'yacKJnc2dSM2t6TKRwa7dLRd5d1kXA6mm5'),
+        (0, 2, 'yc8Kx9L5MewoXCC4mMHxEWtBh5iwpzkDs3'),
+        (1, 0, 'yRkRaZwheCpBFbcuMZXYr1FyUz9wH8djH6'),
+        (1, 3, 'ygRC8jXLAyM3NV4SzRd173w1ZPRgB4zn69'),
+    )
+
+    @classmethod
+    def setUpClass(cls):
+        set_testnet(True)
+
+    @classmethod
+    def tearDownClass(cls):
+        set_testnet(False)

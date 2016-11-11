@@ -8,6 +8,7 @@ from lib.bitcoin import (
     pw_decode, Hash, PoWHash, rev_hex, public_key_from_private_key, address_from_private_key,
     is_valid, is_private_key, xpub_from_xprv, is_new_seed, is_old_seed,
     var_int, op_push)
+from lib.bitcoin import _set_tnet as set_testnet
 
 try:
     import ecdsa
@@ -200,6 +201,17 @@ class Test_keyImport(unittest.TestCase):
         self.assertTrue(is_private_key(self.private_key))
         self.assertFalse(is_private_key(self.public_key_hex))
 
+class Test_keyImport_testnet(Test_keyImport):
+    private_key = "cVPXTF2TnozE1PenpP3x9huctiATZmp27T9Ue1d8nqLSExoPwfN5"
+    main_address = "yR5mAnkzD7tN1Fd29cG1qVKL8C9MddKKKA"
+
+    @classmethod
+    def setUpClass(cls):
+        set_testnet(True)
+
+    @classmethod
+    def tearDownClass(cls):
+        set_testnet(False)
 
 class Test_seeds(unittest.TestCase):
     """ Test old and new seeds. """

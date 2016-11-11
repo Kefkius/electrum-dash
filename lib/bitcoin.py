@@ -48,6 +48,10 @@ def is_testnet():
     """Get whether testnet is enabled."""
     return testnet
 
+# Nose has trouble with function names containing the string "test".
+_set_tnet = lambda x: set_testnet(x)
+_is_tnet = lambda: is_testnet()
+
 def pubkey_addr():
     """Get the P2PKH address version."""
     return 140 if is_testnet() else 76
