@@ -21,6 +21,10 @@ The manager displays the following data about each masternode you have set up:
 
 ## Setting Up
 
+**The screenshots below are of Dash's testnet.**
+
+![Masternode Manager with the default masternode entry.](./mn-default-masternode.png "Default Masternode Entry")
+
 ### Delegate Key
 
 A masternode requires a "delegate" key, which is known to both Electrum-DASH and your masternode.
@@ -39,6 +43,8 @@ Certain information about your masternode is required. The IP address and port t
 must be supplied. Also, the protocol version that your masternode supports is required. This information is filled
 in automatically if you import a "masternode.conf" file.
 
+![Masternode Manager with the delegate key, IP address, and protocol version filled in.](./mn-delegate-and-ip.png "Delegate Key, IP Address, and Protocol Version")
+
 ### Collateral (1000 DASH Payment)
 
 To start a masternode, you must have a 1000 DASH payment available in your wallet.
@@ -49,6 +55,10 @@ After scanning, a list of available 1000 DASH collateral payments will be displa
 of them will cause the selected masternode's data to be filled in, though these changes won't be saved
 until you click the `Save` button in the lower-right corner of the tab.
 
+![Choosing the masternode's collateral payment.](./mn-scanned-for-collateral.png "After Scanning for Valid Collateral Payments")
+
+![After saving the masternode's collateral payment.](./mn-saved-collateral.png "After Saving the Collateral Payment")
+
 ### Activating Your Masternode
 
 After selecting a collateral payment and specifying a delegate key, you can activate your masternode.
@@ -57,11 +67,15 @@ Do this by clicking `Activate Masternode` in the `Activate Masternode` tab of th
 If the `Activate Masternode` button cannot be clicked, look at the message in the `Status:` bar. It
 will show you why your masternode cannot be activated.
 
+![Activation tab of the Masternode Manager.](./mn-activate-tab.png "The Activate Masternode Tab")
+
 Activation will require your password if your wallet is encrypted, because a message must be signed. After
 waiting for Electrum-DASH to sign and broadcast your masternode announcement, you will be presented with
 a message detailing the result.
 
 The status of your masternode will be updated in the table and the `View Masternode` tab.
+
+![After activating a masternode.](./mn-activate-tab-done.png "After Activating a Masternode")
 
 ## Importing Masternode.conf
 
