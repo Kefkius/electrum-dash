@@ -41,7 +41,7 @@ import PyQt4.QtCore as QtCore
 
 import icons_rc
 
-from electrum_dash.bitcoin import COIN, is_valid, TYPE_ADDRESS
+from electrum_dash.bitcoin import COIN, is_valid, is_testnet, TYPE_ADDRESS
 from electrum_dash.plugins import run_hook
 from electrum_dash.i18n import _
 from electrum_dash.util import (block_explorer, block_explorer_info, format_time,
@@ -325,7 +325,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         run_hook('load_wallet', wallet, self)
 
     def watching_only_changed(self):
-        title = 'Electrum %s  -  %s' % (self.wallet.electrum_version,
+        title = 'Electrum %s%s  -  %s' % (self.wallet.electrum_version,
+                                        ' [testnet]' if is_testnet() else '',
                                         self.wallet.basename())
         if self.wallet.is_watching_only():
             self.warn_if_watching_only()
