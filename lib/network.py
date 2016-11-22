@@ -204,8 +204,8 @@ class Network(util.DaemonThread):
         if not os.path.exists(dir_path):
             os.mkdir(dir_path)
 
-        # Servers that have invalid versions.
-        self.invalid_version_servers = set()
+        # Servers that have invalid versions or are on the wrong network.
+        self.incompatible_servers = set()
         # subscriptions and requests
         self.subscribed_addresses = set()
         # Requests from client we've not seen a response to
@@ -377,7 +377,7 @@ class Network(util.DaemonThread):
 
     def start_random_interface(self):
         exclude_set = self.disconnected_servers.union(set(self.interfaces))
-        exclude_set = self.invalid_version_servers.union(exclude_set)
+        exclude_set = self.incompatible_servers.union(exclude_set)
         server = pick_random_server(self.get_servers(), self.protocol, exclude_set)
         if server:
             self.start_interface(server)
@@ -503,6 +503,9 @@ class Network(util.DaemonThread):
         if method == 'server.version':
             if error is None:
                 self.on_version(interface, result)
+        elif method == 'server.network':
+            if error is None:
+                self.on_server_network(interface, result)
         elif method == 'blockchain.headers.subscribe':
             if error is None:
                 self.on_header(interface, result)
@@ -629,9 +632,9 @@ class Network(util.DaemonThread):
                 if callback in v:
                     v.remove(callback)
 
-    def invalid_version(self, server):
+    def incompatible_server(self, server):
         '''A server has an incompatible version.'''
-        self.invalid_version_servers.add(server)
+        self.incompatible_servers.add(server)
         self.connection_down(server)
 
     def connection_down(self, server):
@@ -649,6 +652,7 @@ class Network(util.DaemonThread):
         self.add_recent_server(server)
         self.interfaces[server] = interface = Interface(server, socket)
         self.queue_request('server.version', [ELECTRUM_VERSION, PROTOCOL_VERSION], interface)
+        self.queue_request('server.network', ['dash_test' if is_testnet() else 'dash_main'], interface)
         self.queue_request('blockchain.headers.subscribe', [], interface)
         if server == self.default_server:
             self.switch_to_interface(server)
@@ -819,12 +823,19 @@ class Network(util.DaemonThread):
         try:
             server_version = float(version)
         except Exception:
-            self.invalid_version(i.server)
+            self.incompatible_server(i.server)
             return
 
         if server_version < MIN_SERVER_VERSION:
             self.print_error('Disconnecting %s with version %s (minimum: %s)' % (i.server, server_version, MIN_SERVER_VERSION))
-            self.invalid_version(i.server)
+            self.incompatible_server(i.server)
+
+    def on_server_network(self, i, server_network):
+        """Check if a server is on the same network as us."""
+        our_network = 'dash_test' if is_testnet() else 'dash_main'
+        if server_network != our_network:
+            self.print_error('Disconnecting %s on %s' % (i.server, server_network))
+            self.incompatible_server(i.server)
 
     def on_header(self, i, header):
         height = header.get('block_height')
